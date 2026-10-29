@@ -50,8 +50,8 @@ Rust Source (.rs)
 
 ### Build Instructions
 ```bash
-git clone https://github.com/<your-username>/oxide.git
-cd oxide
+git clone https://github.com/isihussain/oxide-compiler.git
+cd oxide-compiler
 make
 ```
 
