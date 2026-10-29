@@ -6,4 +6,6 @@ bin/
 *.out
 *.out.c
 *.dSYM/
+dist/
+*.tar.gz
 .DS_Store
