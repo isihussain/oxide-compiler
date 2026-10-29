@@ -1,0 +1,9 @@
+# Build artifacts
+build/
+bin/
+*.o
+*.a.out
+*.out
+*.out.c
+*.dSYM/
+.DS_Store
