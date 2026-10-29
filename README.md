@@ -195,6 +195,14 @@ Results: 40/40 tests passed.
 3. Ensure all tests pass with `make test`.
 4. Open a pull request describing your changes and matching test cases.
 
+## Support
+
+Support Oxide development:
+
+- [GitHub Sponsors](https://github.com/sponsors/isihussain)
+- [Buy Me a Coffee ($1)](https://buymeacoffee.com/isihussain)
+- [Ko-fi ($1)](https://ko-fi.com/isihussain)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
