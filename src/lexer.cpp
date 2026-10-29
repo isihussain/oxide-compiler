@@ -112,24 +112,26 @@ bool Lexer::match(char expected) {
     return true;
 }
 
+// Skip non-significant whitespace and strip both single-line and block comments.
+// Ensures line_ and column_ counters advance accurately across newline boundaries.
 void Lexer::skip_whitespace_and_comments() {
     while (!is_at_end()) {
         char c = peek();
         if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
             advance();
         } else if (c == '/' && peek_next() == '/') {
-            // Single-line comment
+            // Line comment: skip characters until newline or end-of-file
             while (!is_at_end() && peek() != '\n') {
                 advance();
             }
         } else if (c == '/' && peek_next() == '*') {
-            // Block comment
-            advance(); // '/'
-            advance(); // '*'
+            // Delimited block comment: consume until matching closing '*/'
+            advance(); // consume '/'
+            advance(); // consume '*'
             while (!is_at_end()) {
                 if (peek() == '*' && peek_next() == '/') {
-                    advance(); // '*'
-                    advance(); // '/'
+                    advance(); // consume '*'
+                    advance(); // consume '/'
                     break;
                 }
                 advance();
@@ -277,6 +279,8 @@ Token Lexer::scan_number() {
     return Token{TokenType::LiteralInt, text, val, false, loc};
 }
 
+// Scan string literal with escape sequence interpretation (\n, \t, \r, \\, \").
+// Throws std::runtime_error if the literal is unclosed before reaching EOF.
 Token Lexer::scan_string() {
     SourceLocation loc{line_, column_};
     std::string val;

@@ -34,6 +34,10 @@ const std::set<std::string>& LivenessAnalyzer::live_out(BlockId block) const {
     return empty_set_;
 }
 
+// Fixed-point backward dataflow analysis for variable liveness.
+// Iterates until live_in sets stabilize across all basic blocks:
+//   LiveOut[B] = Union_{S in Succ(B)} LiveIn[S]
+//   LiveIn[B]  = Uses(B) Union (LiveOut[B] \ Defs(B))
 void LivenessAnalyzer::compute_liveness(const CFGFunction& cfg) {
     bool changed = true;
     while (changed) {
@@ -128,6 +132,12 @@ void BorrowChecker::check_function(Function& func) {
     check_function_nll(cfg, liveness);
 }
 
+// Non-Lexical Lifetimes (NLL) borrow validation algorithm.
+// Implements a multi-pass analysis pipeline:
+//  Phase 0: BFS traversal to identify all reachable basic blocks.
+//  Phase 1: Forward dataflow MUST analysis computing definite variable initialization.
+//  Phase 2: Fine-grained program-point verification enforcing loan exclusivity,
+//           forbidding mutation while borrowed, and verifying variable mutability constraints.
 void BorrowChecker::check_function_nll(const CFGFunction& cfg, const LivenessAnalyzer& liveness) {
     // 0. Compute Reachable Blocks
     std::set<BlockId> reachable_blocks;

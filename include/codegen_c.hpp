@@ -6,6 +6,18 @@
 
 namespace oxide {
 
+/**
+ * @brief Backend code generator emitting standard ANSI/ISO C99 source code.
+ *
+ * Translates verified Oxide AST constructs into C99 equivalents:
+ *  - Primitive types: 'i32' -> 'int32_t', 'bool' -> 'bool', '&str' -> 'const char*'.
+ *  - Stack arrays: '[T; N]' -> 'T var[N]' with bounds verification traps.
+ *  - Tagged union enums: C enum tag plus union payload struct and inline constructor functions.
+ *  - Pattern matching: Switch statement on discriminant tag extracting payload union fields.
+ *  - Built-in macros: 'println!' -> 'printf', 'assert!' -> 'assert', 'panic!' -> 'fprintf + abort'.
+ *  - Aerospace profile: Injects compiler built-ins '__builtin_add_overflow', '__builtin_sub_overflow',
+ *    and '__builtin_mul_overflow' to trap on integer overflow at runtime.
+ */
 class CCodeGenerator {
 public:
     explicit CCodeGenerator(const Program& program, bool aerospace_profile = false);

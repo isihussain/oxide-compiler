@@ -14,6 +14,21 @@
 #include <sstream>
 #include <string>
 
+/**
+ * @file main.cpp
+ * @brief Oxide compiler driver and CLI entry point.
+ *
+ * Orchestrates the sequential compiler phases:
+ *   Phase 1: Lexical analysis (UTF-8 source tokenization)
+ *   Phase 2: Recursive-descent AST parsing and operator precedence climbing
+ *   Phase 3: Static type checking, trait checking, and exhaustiveness analysis
+ *   Phase 4: Monomorphization (generic function and struct specialization)
+ *   Phase 5: Control flow graph generation and Non-Lexical Lifetimes borrow checking
+ *   Phase 6: Aerospace safety-critical verification (NASA/JPL rules 1, 2, 3)
+ *   Phase 7: AST-level optimization (constant folding and dead code elimination)
+ *   Phase 8: ANSI C99 code generation and host C toolchain compilation
+ */
+
 void print_usage(const char* prog) {
     std::cout << "Oxide - Independent Rust Compiler (Milestone 1 Core)\n"
               << "Usage: " << prog << " [options] <input.rs>\n\n"

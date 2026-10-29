@@ -8,6 +8,17 @@
 
 namespace oxide {
 
+/**
+ * @brief Monomorphization transformation pass.
+ *
+ * Implements Rust's zero-cost abstraction paradigm for parametric polymorphism:
+ *  1. Scans all function bodies, struct definitions, and call sites for generic instantiations.
+ *  2. Clones generic AST templates (functions and structs) for each unique concrete type binding.
+ *  3. Substitutes all GenericParam types with concrete types throughout parameters, return types,
+ *     local bindings, and expression subtrees.
+ *  4. Rewrites call sites and struct initializations to point directly to specialized mangled symbols.
+ *  5. Prunes generic template definitions from the final AST before C99 code generation.
+ */
 class Monomorphizer {
 public:
     explicit Monomorphizer(Program& program);

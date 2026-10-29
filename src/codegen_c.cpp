@@ -82,6 +82,9 @@ void CCodeGenerator::emit_includes() {
     line();
 }
 
+// Emits safety-critical runtime traps for the aerospace profile.
+// Prevents silent integer overflow bugs (Ariane 5 flight 501 root cause),
+// bounds-check failures, and unhandled division by zero via immediate process abort.
 void CCodeGenerator::emit_aerospace_traps() {
     line("/* Safety-Critical / Aerospace Overflow Traps (NASA/JPL & Ariane 5 Mitigation) */");
     line("#define __OXIDE_BOUNDS_CHECK(arr, idx, len) (((idx) >= 0 && (size_t)(idx) < (size_t)(len)) ? (arr) : (fprintf(stderr, \"AEROSPACE TRAP: array index out of bounds\\n\"), abort(), (arr)))");

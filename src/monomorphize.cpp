@@ -485,8 +485,12 @@ void Monomorphizer::transform_block(BlockExpr& block) {
     }
 }
 
+// Monomorphization execution driver.
+// Discovers all polymorphic generic instantiations across statements and expressions,
+// clones and specializes them with concrete substituted types, rewrites AST call sites,
+// and filters out abstract generic templates before C99 code generation.
 void Monomorphizer::run() {
-    // 1. Transform non-generic functions
+    // 1. Traverse and transform non-generic functions to trigger specializations at call sites
     for (auto& fn : program_.functions) {
         if (!fn->is_generic()) {
             transform_type(fn->return_type);

@@ -129,6 +129,10 @@ Type TypeChecker::substitute_type(const Type& type, const std::map<std::string, 
     return res;
 }
 
+// Bidirectional type unification algorithm for generic type parameter inference.
+// Solves for type parameters (GenericParam) given concrete observed argument types.
+// For example: given formal signature 'fn identity<T>(x: T)' and argument '42' ('i32'),
+// unifies pattern 'T' with concrete 'i32' to deduce subst['T'] = i32.
 bool TypeChecker::unify_type(const Type& pattern, const Type& concrete, std::map<std::string, Type>& subst) {
     if (pattern.kind == BaseTypeKind::GenericParam) {
         auto it = subst.find(pattern.name);

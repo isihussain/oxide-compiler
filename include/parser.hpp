@@ -8,10 +8,38 @@
 
 namespace oxide {
 
+/**
+ * @brief Recursive-descent parser for the Oxide Rust compiler.
+ *
+ * Implements standard LL(k) recursive descent parsing combined with
+ * operator precedence climbing (Pratt parsing) for expressions.
+ *
+ * Precedence hierarchy (lowest to highest):
+ *   1. Assignment ('=') [Right-associative]
+ *   2. Equality ('==', '!=') [Left-associative]
+ *   3. Relational ('<', '<=', '>', '>=') [Left-associative]
+ *   4. Additive / Term ('+', '-') [Left-associative]
+ *   5. Multiplicative / Factor ('*', '/') [Left-associative]
+ *   6. Prefix Unary ('-', '!', '&', '&mut', '*') [Right-associative]
+ *   7. Postfix / Primary (field access '.', indexing '[]', function/method calls '()', literals, blocks)
+ *
+ * Disambiguation techniques:
+ *  - Struct literal vs. block expression / comparison:
+ *    Checks if an identifier is followed by '{' containing 'field:' syntax.
+ *  - Generics vs. comparison operator '<':
+ *    Scans ahead to distinguish 'foo<T>(...)' or 'struct Pair<T>' from 'x < y'.
+ *  - Enum constructor vs. associated function:
+ *    Resolves 'Type::Variant(args)' by maintaining a catalog of declared enums.
+ */
 class Parser {
 public:
     explicit Parser(std::vector<Token> tokens);
 
+    /**
+     * @brief Parses the entire token stream into a root Program AST node.
+     * @return Unique pointer to the resulting Program.
+     * @throws std::runtime_error on syntax errors with precise source coordinates.
+     */
     std::unique_ptr<Program> parse_program();
 
 private:

@@ -8,6 +8,9 @@
 
 namespace oxide {
 
+/**
+ * @brief Formal signature metadata for function declarations and FFI foreign functions.
+ */
 struct FunctionSignature {
     std::string name;
     std::vector<std::string> type_params;
@@ -16,6 +19,9 @@ struct FunctionSignature {
     SourceLocation location;
 };
 
+/**
+ * @brief Nominal struct layout record tracking field types and declared order.
+ */
 struct StructSignature {
     std::string name;
     std::vector<std::string> type_params;
@@ -24,6 +30,9 @@ struct StructSignature {
     SourceLocation location;
 };
 
+/**
+ * @brief Individual variant within an algebraic tagged union enum.
+ */
 struct EnumVariantSignature {
     std::string name;
     std::optional<Type> payload_type;
@@ -31,12 +40,18 @@ struct EnumVariantSignature {
     SourceLocation location;
 };
 
+/**
+ * @brief Definition metadata for tagged union enums and their discriminants.
+ */
 struct EnumSignature {
     std::string name;
     std::map<std::string, EnumVariantSignature> variants;
     SourceLocation location;
 };
 
+/**
+ * @brief Abstract method declaration within a trait definition.
+ */
 struct TraitMethodSignature {
     std::string name;
     std::vector<Parameter> parameters;
@@ -44,12 +59,18 @@ struct TraitMethodSignature {
     SourceLocation location;
 };
 
+/**
+ * @brief Trait contract containing required method signatures.
+ */
 struct TraitSignature {
     std::string name;
     std::map<std::string, TraitMethodSignature> methods;
     SourceLocation location;
 };
 
+/**
+ * @brief Resolved concrete method signature in an impl block.
+ */
 struct MethodSignature {
     std::string target_type;
     std::string method_name;
@@ -60,10 +81,27 @@ struct MethodSignature {
     SourceLocation location;
 };
 
+/**
+ * @brief Static type checker and semantic analyzer for Oxide.
+ *
+ * Responsibilities:
+ *  - Enforces static type safety across expressions, statements, and blocks.
+ *  - Manages a lexical scope stack for local variables with mutability tracking.
+ *  - Registers and validates user-defined structs, enums, traits, and impl blocks.
+ *  - Implements bidirectional type unification for polymorphic function and struct instantiation.
+ *  - Enforces pattern matching exhaustiveness over enum variants.
+ *  - Validates method dispatch receiver types and auto-deref/borrow rules.
+ */
 class TypeChecker {
 public:
     explicit TypeChecker(Program& program);
+
+    /**
+     * @brief Performs full semantic type analysis over all items in the program.
+     * @return True if no type errors were encountered; false otherwise.
+     */
     bool check();
+
     const std::vector<std::string>& errors() const { return errors_; }
 
 private:

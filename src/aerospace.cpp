@@ -171,6 +171,13 @@ void AerospaceVerifier::build_call_graph() {
     }
 }
 
+// NASA/JPL Flight Software Rule 3: Bounded call stack depth & recursion prohibition.
+// Employs a 3-color DFS graph cycle detection algorithm:
+//   State 0 (Unvisited): Function has not yet been processed.
+//   State 1 (Visiting): Function is on the active call stack path.
+//   State 2 (Visited): Function call subtree has been completely verified acyclic.
+// When a neighbor in State 1 is encountered, a back-edge is detected and the exact
+// cyclic call chain is formatted into an aerospace diagnostic error.
 void AerospaceVerifier::check_recursion() {
     std::map<std::string, int> state; // 0 = unvisited, 1 = visiting, 2 = visited
     std::set<std::string> reported_cycles;

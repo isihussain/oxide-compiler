@@ -6,10 +6,24 @@
 
 namespace oxide {
 
+/**
+ * @brief Lexical analyzer / scanner for the Oxide language.
+ *
+ * Implements a single-pass character-level streaming scanner. Features:
+ *  - Accurate 1-based line and column tracking for source error locations.
+ *  - Stripping of whitespace and comments (both single-line '//' and block comments).
+ *  - Maximal munch rule for multi-character operators ('..', '->', '=>', '==', '!=', '<=', '>=', '::').
+ *  - Escape sequence parsing within double-quoted string literals.
+ *  - Numerical overflow-safe decimal integer literal evaluation.
+ */
 class Lexer {
 public:
     explicit Lexer(std::string source, std::string filename = "<stdin>");
 
+    /**
+     * @brief Transforms the entire input source string into a sequence of Tokens.
+     * @return Vector of scanned tokens terminated by an explicit TokenType::Eof token.
+     */
     std::vector<Token> tokenize();
 
 private:

@@ -8,24 +8,33 @@
 
 namespace oxide {
 
+/**
+ * @brief Discriminant indicating the fundamental category of an Oxide type.
+ */
 enum class BaseTypeKind {
-    Unit,
-    I32,
-    Bool,
-    Str,
-    Array,
-    Slice,
-    Named,
-    GenericParam,
+    Unit,         ///< The zero-sized '()' type
+    I32,          ///< Signed 32-bit integer
+    Bool,         ///< Boolean value (true / false)
+    Str,          ///< UTF-8 string slice (&str)
+    Array,        ///< Fixed-size homogeneous array [T; N]
+    Slice,        ///< Dynamically-sized slice view &[T]
+    Named,        ///< Nominal user-defined struct or enum (e.g., Point, Status, Option)
+    GenericParam, ///< Unbound type parameter during generic definition (e.g., T, E)
 };
 
+/**
+ * @brief Canonical type representation in Oxide.
+ *
+ * Encapsulates the kind, nominal name, generic arguments, reference qualification,
+ * mutability, and array length. Supports C++20 default operator== for structural equality.
+ */
 struct Type {
     BaseTypeKind kind = BaseTypeKind::Unit;
-    std::string name = "";
-    std::vector<Type> type_args;
-    bool is_ref = false;
-    bool is_mut_ref = false;
-    size_t array_size = 0;
+    std::string name = "";               ///< Nominal type identifier or generic parameter name.
+    std::vector<Type> type_args;        ///< Concrete type arguments for generic instantiation.
+    bool is_ref = false;                 ///< True if this is an immutable reference (&T).
+    bool is_mut_ref = false;             ///< True if this is a mutable reference (&mut T).
+    size_t array_size = 0;               ///< Element count for BaseTypeKind::Array.
 
     Type() = default;
     Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false, std::vector<Type> args = {}, size_t arr_sz = 0)
@@ -34,7 +43,15 @@ struct Type {
         : kind(k), name(""), is_ref(r), is_mut_ref(mr), array_size(0) {}
 
     bool operator==(const Type& other) const = default;
+
+    /**
+     * @brief Produces the idiomatic Rust string syntax (e.g. '&mut Point', '[i32; 4]', 'Option<i32>').
+     */
     std::string to_string() const;
+
+    /**
+     * @brief Produces a sanitized symbol identifier for monomorphized C symbol generation.
+     */
     std::string mangled_name() const;
 };
 

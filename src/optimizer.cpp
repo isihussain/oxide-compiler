@@ -22,6 +22,9 @@ void Optimizer::optimize_function(Function& func) {
     }
 }
 
+// Dead code elimination on block statements:
+// Once an unconditional return statement is encountered, all subsequent statements
+// in the same lexical block are statically pruned from the AST.
 void Optimizer::optimize_block(BlockExpr& block) {
     std::vector<std::unique_ptr<Statement>> new_stmts;
     bool returned = false;
@@ -64,6 +67,9 @@ void Optimizer::optimize_statement(std::unique_ptr<Statement>& stmt) {
     }
 }
 
+// Recursively simplifies subexpressions via constant folding.
+// When operands are known constants (IntegerLiteralExpr, BoolLiteralExpr),
+// performs arithmetic and relational operations at compile time.
 std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expression> expr) {
     if (!expr) return nullptr;
 

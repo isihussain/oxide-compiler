@@ -10,17 +10,23 @@ namespace oxide {
 
 using BlockId = size_t;
 
+/**
+ * @brief Categorization of fine-grained operations within a basic block.
+ */
 enum class CFGStmtKind {
-    AssignVar,       // x = expr
-    AssignField,     // x.field = expr
-    AssignDeref,     // *ptr = expr
-    AssignIndex,     // x[i] = expr
-    Borrow,          // target = &borrowed or &mut borrowed
-    MethodCall,      // r.method(...)
-    Call,            // f(...)
-    EvalExpr,        // standalone expression
+    AssignVar,       // x = expr (variable assignment or rebinding)
+    AssignField,     // x.field = expr (struct field assignment)
+    AssignDeref,     // *ptr = expr (dereference assignment)
+    AssignIndex,     // x[i] = expr (array/slice index assignment)
+    Borrow,          // target = &borrowed or &mut borrowed (loan creation)
+    MethodCall,      // r.method(...) (method invocation)
+    Call,            // f(...) (function call)
+    EvalExpr,        // standalone expression evaluation
 };
 
+/**
+ * @brief Identifies a discrete program point (block + statement index) for liveness analysis.
+ */
 struct CFGPoint {
     BlockId block_id = 0;
     size_t stmt_index = 0;
@@ -34,6 +40,9 @@ struct CFGPoint {
     }
 };
 
+/**
+ * @brief Atomic statement representation in the CFG tracking variable reads, writes, and loans.
+ */
 struct CFGStatement {
     CFGStmtKind kind = CFGStmtKind::EvalExpr;
     std::string target_var;
@@ -44,13 +53,19 @@ struct CFGStatement {
     SourceLocation location;
 };
 
+/**
+ * @brief Control flow block terminator kinds.
+ */
 enum class TerminatorKind {
-    None,
-    Goto,
-    Branch,
-    Return,
+    None,   ///< Unfinalized block terminator
+    Goto,   ///< Unconditional jump to target block
+    Branch, ///< Two-way conditional branch based on boolean variable
+    Return, ///< Exit from enclosing function
 };
 
+/**
+ * @brief Block terminator transferring control to successor basic blocks.
+ */
 struct CFGTerminator {
     TerminatorKind kind = TerminatorKind::None;
     std::string cond_var;
@@ -61,6 +76,9 @@ struct CFGTerminator {
     SourceLocation location;
 };
 
+/**
+ * @brief Basic block in a function's control flow graph.
+ */
 struct BasicBlock {
     BlockId id = 0;
     std::vector<CFGStatement> statements;
@@ -69,6 +87,9 @@ struct BasicBlock {
     std::vector<BlockId> successors;
 };
 
+/**
+ * @brief Full Control Flow Graph for a single function.
+ */
 struct CFGFunction {
     std::string name;
     std::vector<Parameter> parameters;
@@ -95,6 +116,9 @@ struct CFGFunction {
     }
 };
 
+/**
+ * @brief Lowers a high-level Function AST node into basic blocks and terminators.
+ */
 class CFGBuilder {
 public:
     static CFGFunction build(const Function& func);

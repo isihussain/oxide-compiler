@@ -439,19 +439,22 @@ std::unique_ptr<BlockExpr> Parser::parse_block() {
         if (check(TokenType::KwLet)) {
             block->statements.push_back(parse_let_statement());
         } else {
-            // Can be an expression statement or a trailing expression
+            // In Rust syntax, an expression inside a block is disambiguated by its trailing punctuation:
+            //  1. Followed by ';' -> An ExprStmt statement whose value is discarded.
+            //  2. Immediately followed by '}' -> The trailing return expression of the block.
+            //  3. Compound expressions ending in '}' (if, while, for, block) -> Do not require a semicolon.
             auto expr = parse_expression();
             if (match(TokenType::Semicolon)) {
                 block->statements.push_back(std::make_unique<ExprStmt>(std::move(expr), expr->location));
             } else if (check(TokenType::RBrace)) {
-                // Trailing expression!
+                // Trailing expression: produces the evaluation result of this block
                 block->trailing_expr = std::move(expr);
                 break;
             } else if (dynamic_cast<IfExpr*>(expr.get()) ||
                        dynamic_cast<WhileExpr*>(expr.get()) ||
                        dynamic_cast<ForExpr*>(expr.get()) ||
                        dynamic_cast<BlockExpr*>(expr.get())) {
-                // In Rust, expressions ending with '}' do not require a semicolon
+                // Compound construct ending in '}' does not require trailing ';' in statement position
                 block->statements.push_back(std::make_unique<ExprStmt>(std::move(expr), expr->location));
             } else {
                 throw std::runtime_error("Expected ';' after statement at [" +
@@ -732,14 +735,14 @@ std::unique_ptr<Expression> Parser::parse_primary() {
             }
         }
 
-        // Turbofish type arguments: ident::<i32>
+        // Turbofish generic type arguments: ident::<Type1, Type2>
         std::vector<Type> type_args;
         if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Lt) {
             advance(); // consume '::'
             type_args = parse_type_arguments();
         }
 
-        // Macro call: ident!(...)
+        // Built-in macro invocation syntax: ident!(...) lowered to CallExpr with '!' suffix
         if (match(TokenType::Exclamation)) {
             consume(TokenType::LParen, "Expected '(' after macro name '!'");
             std::vector<std::unique_ptr<Expression>> args;
@@ -752,7 +755,7 @@ std::unique_ptr<Expression> Parser::parse_primary() {
             return std::make_unique<CallExpr>(name + "!", std::move(args), loc);
         }
 
-        // Function call: ident(...)
+        // Standard function call expression: ident(arg1, arg2)
         if (match(TokenType::LParen)) {
             std::vector<std::unique_ptr<Expression>> args;
             if (!check(TokenType::RParen)) {
@@ -764,7 +767,9 @@ std::unique_ptr<Expression> Parser::parse_primary() {
             return std::make_unique<CallExpr>(name, std::move(args), loc, std::move(type_args));
         }
 
-        // Struct literal: Name { field: value, ... }
+        // Disambiguation for struct literal expressions: StructName { field: expr, ... }
+        // Lookahead 3 tokens: checks if '{' is followed by 'identifier :' to avoid
+        // misidentifying block expressions or control flow constructs.
         if (check(TokenType::LBrace) && cursor_ + 2 < tokens_.size() &&
             tokens_[cursor_ + 1].type == TokenType::Identifier &&
             tokens_[cursor_ + 2].type == TokenType::Colon) {
