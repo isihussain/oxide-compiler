@@ -12,6 +12,9 @@ enum class BaseTypeKind {
     Unit,
     I32,
     Bool,
+    Str,
+    Array,
+    Slice,
     Named,
     GenericParam,
 };
@@ -22,12 +25,13 @@ struct Type {
     std::vector<Type> type_args;
     bool is_ref = false;
     bool is_mut_ref = false;
+    size_t array_size = 0;
 
     Type() = default;
-    Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false, std::vector<Type> args = {})
-        : kind(k), name(std::move(n)), type_args(std::move(args)), is_ref(r), is_mut_ref(mr) {}
+    Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false, std::vector<Type> args = {}, size_t arr_sz = 0)
+        : kind(k), name(std::move(n)), type_args(std::move(args)), is_ref(r), is_mut_ref(mr), array_size(arr_sz) {}
     Type(BaseTypeKind k, bool r, bool mr)
-        : kind(k), name(""), is_ref(r), is_mut_ref(mr) {}
+        : kind(k), name(""), is_ref(r), is_mut_ref(mr), array_size(0) {}
 
     bool operator==(const Type& other) const = default;
     std::string to_string() const;
@@ -238,6 +242,59 @@ struct MatchExpr : public Expression {
 
     MatchExpr(std::unique_ptr<Expression> tgt, std::vector<MatchArm> arm_list, SourceLocation loc)
         : target(std::move(tgt)), arms(std::move(arm_list)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct StringLiteralExpr : public Expression {
+    std::string value;
+
+    StringLiteralExpr(std::string val, SourceLocation loc)
+        : value(std::move(val)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct ArrayLiteralExpr : public Expression {
+    std::vector<std::unique_ptr<Expression>> elements;
+
+    ArrayLiteralExpr(std::vector<std::unique_ptr<Expression>> elems, SourceLocation loc)
+        : elements(std::move(elems)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct ArrayRepeatExpr : public Expression {
+    std::unique_ptr<Expression> value;
+    size_t count = 0;
+
+    ArrayRepeatExpr(std::unique_ptr<Expression> val, size_t c, SourceLocation loc)
+        : value(std::move(val)), count(c) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct IndexExpr : public Expression {
+    std::unique_ptr<Expression> target;
+    std::unique_ptr<Expression> index;
+
+    IndexExpr(std::unique_ptr<Expression> tgt, std::unique_ptr<Expression> idx, SourceLocation loc)
+        : target(std::move(tgt)), index(std::move(idx)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct RangeExpr : public Expression {
+    std::unique_ptr<Expression> start;
+    std::unique_ptr<Expression> end;
+
+    RangeExpr(std::unique_ptr<Expression> s, std::unique_ptr<Expression> e, SourceLocation loc)
+        : start(std::move(s)), end(std::move(e)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct ForExpr : public Expression {
+    std::string var_name;
+    std::unique_ptr<Expression> iterable;
+    std::unique_ptr<BlockExpr> body;
+
+    ForExpr(std::string var, std::unique_ptr<Expression> iter, std::unique_ptr<BlockExpr> b, SourceLocation loc)
+        : var_name(std::move(var)), iterable(std::move(iter)), body(std::move(b)) { location = loc; }
     void dump(int indent = 0) const override;
 };
 

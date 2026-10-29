@@ -23,12 +23,14 @@ const char* token_type_name(TokenType type) {
         case TokenType::KwTrait: return "trait";
         case TokenType::KwImpl: return "impl";
         case TokenType::KwFor: return "for";
+        case TokenType::KwIn: return "in";
         case TokenType::KwSelfValue: return "self";
         case TokenType::KwExtern: return "extern";
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
         case TokenType::TypeI32: return "i32";
         case TokenType::TypeBool: return "bool";
+        case TokenType::TypeStr: return "str";
         case TokenType::LiteralInt: return "Integer";
         case TokenType::LiteralBool: return "Boolean";
         case TokenType::LiteralString: return "String";
@@ -39,6 +41,7 @@ const char* token_type_name(TokenType type) {
         case TokenType::Star: return "*";
         case TokenType::Slash: return "/";
         case TokenType::Dot: return ".";
+        case TokenType::DotDot: return "..";
         case TokenType::Eq: return "=";
         case TokenType::EqEq: return "==";
         case TokenType::NotEq: return "!=";
@@ -58,6 +61,8 @@ const char* token_type_name(TokenType type) {
         case TokenType::RParen: return ")";
         case TokenType::LBrace: return "{";
         case TokenType::RBrace: return "}";
+        case TokenType::LBracket: return "[";
+        case TokenType::RBracket: return "]";
     }
     return "Unknown";
 }
@@ -172,7 +177,14 @@ Token Lexer::scan_token() {
         }
         case '*': return Token{TokenType::Star, "*", 0, false, loc};
         case '/': return Token{TokenType::Slash, "/", 0, false, loc};
-        case '.': return Token{TokenType::Dot, ".", 0, false, loc};
+        case '.': {
+            if (match('.')) {
+                return Token{TokenType::DotDot, "..", 0, false, loc};
+            }
+            return Token{TokenType::Dot, ".", 0, false, loc};
+        }
+        case '[': return Token{TokenType::LBracket, "[", 0, false, loc};
+        case ']': return Token{TokenType::RBracket, "]", 0, false, loc};
         case '=': {
             if (match('=')) {
                 return Token{TokenType::EqEq, "==", 0, false, loc};
@@ -241,6 +253,7 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "trait") return Token{TokenType::KwTrait, text, 0, false, loc};
     if (text == "impl") return Token{TokenType::KwImpl, text, 0, false, loc};
     if (text == "for") return Token{TokenType::KwFor, text, 0, false, loc};
+    if (text == "in") return Token{TokenType::KwIn, text, 0, false, loc};
     if (text == "self") return Token{TokenType::KwSelfValue, text, 0, false, loc};
     if (text == "extern") return Token{TokenType::KwExtern, text, 0, false, loc};
     if (text == "_") return Token{TokenType::Underscore, text, 0, false, loc};
@@ -248,6 +261,7 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "false") return Token{TokenType::LiteralBool, text, 0, false, loc};
     if (text == "i32") return Token{TokenType::TypeI32, text, 0, false, loc};
     if (text == "bool") return Token{TokenType::TypeBool, text, 0, false, loc};
+    if (text == "str") return Token{TokenType::TypeStr, text, 0, false, loc};
 
     return Token{TokenType::Identifier, text, 0, false, loc};
 }

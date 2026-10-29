@@ -26,7 +26,7 @@ Type Monomorphizer::substitute_type(const Type& type, const std::map<std::string
             replaced.is_mut_ref = res.is_mut_ref || replaced.is_mut_ref;
             return replaced;
         }
-    } else if (res.kind == BaseTypeKind::Named) {
+    } else if (res.kind == BaseTypeKind::Named || res.kind == BaseTypeKind::Array || res.kind == BaseTypeKind::Slice) {
         for (auto& arg : res.type_args) {
             arg = substitute_type(arg, subst);
         }
@@ -163,6 +163,47 @@ std::unique_ptr<Expression> Monomorphizer::clone_expr(const Expression& expr, co
         }
         auto res = std::make_unique<MatchExpr>(std::move(tgt), std::move(arms), match_expr->location);
         res->evaluated_type = substitute_type(match_expr->evaluated_type, subst);
+        return res;
+    }
+
+    if (auto* str_lit = dynamic_cast<const StringLiteralExpr*>(&expr)) {
+        auto res = std::make_unique<StringLiteralExpr>(str_lit->value, str_lit->location);
+        res->evaluated_type = substitute_type(str_lit->evaluated_type, subst);
+        return res;
+    }
+
+    if (auto* arr = dynamic_cast<const ArrayLiteralExpr*>(&expr)) {
+        std::vector<std::unique_ptr<Expression>> elems;
+        for (const auto& el : arr->elements) {
+            elems.push_back(clone_expr(*el, subst));
+        }
+        auto res = std::make_unique<ArrayLiteralExpr>(std::move(elems), arr->location);
+        res->evaluated_type = substitute_type(arr->evaluated_type, subst);
+        return res;
+    }
+
+    if (auto* rep = dynamic_cast<const ArrayRepeatExpr*>(&expr)) {
+        auto res = std::make_unique<ArrayRepeatExpr>(clone_expr(*rep->value, subst), rep->count, rep->location);
+        res->evaluated_type = substitute_type(rep->evaluated_type, subst);
+        return res;
+    }
+
+    if (auto* idx = dynamic_cast<const IndexExpr*>(&expr)) {
+        auto res = std::make_unique<IndexExpr>(clone_expr(*idx->target, subst), clone_expr(*idx->index, subst), idx->location);
+        res->evaluated_type = substitute_type(idx->evaluated_type, subst);
+        return res;
+    }
+
+    if (auto* range = dynamic_cast<const RangeExpr*>(&expr)) {
+        auto res = std::make_unique<RangeExpr>(clone_expr(*range->start, subst), clone_expr(*range->end, subst), range->location);
+        res->evaluated_type = substitute_type(range->evaluated_type, subst);
+        return res;
+    }
+
+    if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        auto res = std::make_unique<ForExpr>(for_expr->var_name, clone_expr(*for_expr->iterable, subst),
+                                             clone_block(*for_expr->body, subst), for_expr->location);
+        res->evaluated_type = substitute_type(for_expr->evaluated_type, subst);
         return res;
     }
 
@@ -377,6 +418,41 @@ void Monomorphizer::transform_expr(Expression& expr) {
         for (auto& a : match_expr->arms) {
             transform_expr(*a.body);
         }
+        return;
+    }
+
+    if (auto* arr = dynamic_cast<ArrayLiteralExpr*>(&expr)) {
+        transform_type(arr->evaluated_type);
+        for (auto& el : arr->elements) {
+            transform_expr(*el);
+        }
+        return;
+    }
+
+    if (auto* rep = dynamic_cast<ArrayRepeatExpr*>(&expr)) {
+        transform_type(rep->evaluated_type);
+        transform_expr(*rep->value);
+        return;
+    }
+
+    if (auto* idx = dynamic_cast<IndexExpr*>(&expr)) {
+        transform_type(idx->evaluated_type);
+        transform_expr(*idx->target);
+        transform_expr(*idx->index);
+        return;
+    }
+
+    if (auto* range = dynamic_cast<RangeExpr*>(&expr)) {
+        transform_type(range->evaluated_type);
+        transform_expr(*range->start);
+        transform_expr(*range->end);
+        return;
+    }
+
+    if (auto* for_expr = dynamic_cast<ForExpr*>(&expr)) {
+        transform_type(for_expr->evaluated_type);
+        transform_expr(*for_expr->iterable);
+        transform_block(*for_expr->body);
         return;
     }
 

@@ -102,6 +102,36 @@ void AerospaceVerifier::collect_calls_from_expr(const std::string& caller, const
         }
         return;
     }
+
+    if (auto* arr = dynamic_cast<const ArrayLiteralExpr*>(&expr)) {
+        for (const auto& el : arr->elements) {
+            collect_calls_from_expr(caller, *el);
+        }
+        return;
+    }
+
+    if (auto* rep = dynamic_cast<const ArrayRepeatExpr*>(&expr)) {
+        collect_calls_from_expr(caller, *rep->value);
+        return;
+    }
+
+    if (auto* idx = dynamic_cast<const IndexExpr*>(&expr)) {
+        collect_calls_from_expr(caller, *idx->target);
+        collect_calls_from_expr(caller, *idx->index);
+        return;
+    }
+
+    if (auto* range = dynamic_cast<const RangeExpr*>(&expr)) {
+        collect_calls_from_expr(caller, *range->start);
+        collect_calls_from_expr(caller, *range->end);
+        return;
+    }
+
+    if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        collect_calls_from_expr(caller, *for_expr->iterable);
+        collect_calls_from_block(caller, *for_expr->body);
+        return;
+    }
 }
 
 void AerospaceVerifier::collect_calls_from_block(const std::string& caller, const BlockExpr& block) {

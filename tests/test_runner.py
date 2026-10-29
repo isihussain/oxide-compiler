@@ -29,6 +29,7 @@ def run():
         ("examples/11_generics_monomorphization.rs", 42, []),
         ("examples/12_traits_and_impl.rs", 42, []),
         ("examples/13_non_lexical_lifetimes.rs", 42, []),
+        ("examples/14_fixed_size_arrays.rs", 42, []),
     ]
 
     passed = 0
@@ -82,6 +83,9 @@ def run():
         ("tests/ui/fail_nll_assign_while_borrowed.rs", "cannot assign to 'x' because it is borrowed", []),
         ("tests/ui/fail_nll_double_mut_borrow.rs", "cannot borrow 'x' as mutable more than once at a time", []),
         ("tests/ui/fail_nll_while_loop_borrow.rs", "cannot assign to 'x' because it is borrowed", []),
+        ("tests/ui/fail_array_type_mismatch.rs", "mismatched types in array element", []),
+        ("tests/ui/fail_array_bounds_check.rs", "index out of bounds", []),
+        ("tests/ui/fail_array_assign_immutable.rs", "cannot assign to index of immutable variable", []),
     ]
 
     for item in negative_tests:

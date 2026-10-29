@@ -261,10 +261,15 @@ void BorrowChecker::check_function_nll(const CFGFunction& cfg, const LivenessAna
                 if (is_mut_ref_it != cfg.var_is_mut_ref.end() && !is_mut_ref_it->second) {
                     emit_error(stmt.location, "cannot assign to dereference of immutable reference");
                 }
+            } else if (stmt.kind == CFGStmtKind::AssignIndex) {
+                auto is_mut_it = cfg.var_is_mut.find(stmt.target_var);
+                if (is_mut_it != cfg.var_is_mut.end() && !is_mut_it->second) {
+                    emit_error(stmt.location, "cannot assign to index of immutable variable '" + stmt.target_var + "'");
+                }
             }
 
             // C) Check mutation conflicts with active loans (Non-Lexical)
-            if (stmt.kind == CFGStmtKind::AssignVar || stmt.kind == CFGStmtKind::AssignField) {
+            if (stmt.kind == CFGStmtKind::AssignVar || stmt.kind == CFGStmtKind::AssignField || stmt.kind == CFGStmtKind::AssignIndex) {
                 for (const auto& loan : loans) {
                     if (loan.borrowed_var == stmt.target_var) {
                         bool loan_active = false;

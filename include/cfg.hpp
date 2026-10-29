@@ -14,6 +14,7 @@ enum class CFGStmtKind {
     AssignVar,       // x = expr
     AssignField,     // x.field = expr
     AssignDeref,     // *ptr = expr
+    AssignIndex,     // x[i] = expr
     Borrow,          // target = &borrowed or &mut borrowed
     MethodCall,      // r.method(...)
     Call,            // f(...)

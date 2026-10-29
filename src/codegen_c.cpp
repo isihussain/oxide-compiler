@@ -25,6 +25,15 @@ std::string CCodeGenerator::map_type(const Type& type) {
         case BaseTypeKind::Unit: base = "void"; break;
         case BaseTypeKind::I32: base = "int32_t"; break;
         case BaseTypeKind::Bool: base = "bool"; break;
+        case BaseTypeKind::Str: return "const char*";
+        case BaseTypeKind::Array:
+        case BaseTypeKind::Slice: {
+            std::string elem = type.type_args.empty() ? "int32_t" : map_type(type.type_args[0]);
+            if (type.is_ref) {
+                return (type.is_mut_ref ? (elem + "*") : ("const " + elem + "*"));
+            }
+            return elem + "*";
+        }
         case BaseTypeKind::Named: base = type.name; break;
         case BaseTypeKind::GenericParam: base = type.name; break;
     }
@@ -69,11 +78,14 @@ void CCodeGenerator::emit_includes() {
     line("#include <stdbool.h>");
     line("#include <stdio.h>");
     line("#include <stdlib.h>");
+    line("#include <assert.h>");
     line();
 }
 
 void CCodeGenerator::emit_aerospace_traps() {
     line("/* Safety-Critical / Aerospace Overflow Traps (NASA/JPL & Ariane 5 Mitigation) */");
+    line("#define __OXIDE_BOUNDS_CHECK(arr, idx, len) (((idx) >= 0 && (size_t)(idx) < (size_t)(len)) ? (arr) : (fprintf(stderr, \"AEROSPACE TRAP: array index out of bounds\\n\"), abort(), (arr)))");
+    line();
     line("static inline int32_t __oxide_checked_add(int32_t a, int32_t b) {");
     line("    int32_t res;");
     line("    if (__builtin_add_overflow(a, b, &res)) {");
@@ -281,6 +293,16 @@ void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body) {
 void CCodeGenerator::emit_statement(const Statement& stmt) {
     if (auto* let = dynamic_cast<const LetStmt*>(&stmt)) {
         indent();
+        if (let->declared_type.kind == BaseTypeKind::Array && !let->declared_type.is_ref) {
+            std::string elem = map_type(let->declared_type.type_args.empty() ? Type{BaseTypeKind::I32} : let->declared_type.type_args[0]);
+            out_ << elem << " " << let->var_name << "[" << let->declared_type.array_size << "]";
+            if (let->initializer) {
+                out_ << " = ";
+                emit_expression(*let->initializer);
+            }
+            out_ << ";\n";
+            return;
+        }
         out_ << map_type(let->declared_type) << " " << let->var_name;
         if (let->initializer) {
             out_ << " = ";
@@ -300,6 +322,12 @@ void CCodeGenerator::emit_statement(const Statement& stmt) {
                     out_ << "else ";
                     emit_block(*if_expr->else_branch, false);
                 }
+                return;
+            }
+            if (auto* for_expr = dynamic_cast<const ForExpr*>(expr_stmt->expr.get())) {
+                indent();
+                emit_expression(*for_expr);
+                out_ << "\n";
                 return;
             }
             indent();
@@ -351,6 +379,12 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << ")";
         }
     } else if (auto* un = dynamic_cast<const UnaryExpr*>(&expr)) {
+        if ((un->op == UnaryOp::Ref || un->op == UnaryOp::RefMut) && un->operand->evaluated_type.kind == BaseTypeKind::Array) {
+            out_ << "(";
+            emit_expression(*un->operand);
+            out_ << ")";
+            return;
+        }
         switch (un->op) {
             case UnaryOp::Negate: out_ << "(-"; break;
             case UnaryOp::Not: out_ << "(!"; break;
@@ -365,6 +399,67 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         out_ << " = ";
         emit_expression(*assign->value);
     } else if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
+        if (call->callee == "println!") {
+            if (call->arguments.empty()) {
+                out_ << "printf(\"\\n\")";
+                return;
+            }
+            if (auto* str_lit = dynamic_cast<const StringLiteralExpr*>(call->arguments[0].get())) {
+                std::string fmt = str_lit->value;
+                std::string c_fmt;
+                size_t arg_idx = 1;
+                for (size_t i = 0; i < fmt.size(); ++i) {
+                    if (fmt[i] == '{' && i + 1 < fmt.size() && fmt[i + 1] == '}') {
+                        if (arg_idx < call->arguments.size()) {
+                            const auto& arg_t = call->arguments[arg_idx]->evaluated_type;
+                            if (arg_t.kind == BaseTypeKind::Str) {
+                                c_fmt += "%s";
+                            } else if (arg_t.kind == BaseTypeKind::Bool) {
+                                c_fmt += "%s";
+                            } else {
+                                c_fmt += "%d";
+                            }
+                            arg_idx++;
+                        } else {
+                            c_fmt += "{}";
+                        }
+                        i++; // skip '}'
+                    } else {
+                        c_fmt += fmt[i];
+                    }
+                }
+                c_fmt += "\\n";
+                out_ << "printf(\"" << c_fmt << "\"";
+                for (size_t i = 1; i < call->arguments.size(); ++i) {
+                    out_ << ", ";
+                    if (call->arguments[i]->evaluated_type.kind == BaseTypeKind::Bool) {
+                        out_ << "(";
+                        emit_expression(*call->arguments[i]);
+                        out_ << " ? \"true\" : \"false\")";
+                    } else {
+                        emit_expression(*call->arguments[i]);
+                    }
+                }
+                out_ << ")";
+                return;
+            }
+        }
+        if (call->callee == "assert!") {
+            out_ << "assert(";
+            emit_expression(*call->arguments[0]);
+            out_ << ")";
+            return;
+        }
+        if (call->callee == "panic!") {
+            out_ << "(fprintf(stderr, \"panicked: \"), ";
+            if (!call->arguments.empty()) {
+                emit_expression(*call->arguments[0]);
+                out_ << ", ";
+            }
+            out_ << "fprintf(stderr, \"\\n\"), abort())";
+            return;
+        }
+
         std::string callee = call->callee;
         size_t pos = 0;
         while ((pos = callee.find("::", pos)) != std::string::npos) {
@@ -517,6 +612,46 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         indent_level_--;
         indent();
         out_ << "})";
+    } else if (auto* str_lit = dynamic_cast<const StringLiteralExpr*>(&expr)) {
+        out_ << "\"" << str_lit->value << "\"";
+    } else if (auto* arr = dynamic_cast<const ArrayLiteralExpr*>(&expr)) {
+        out_ << "{";
+        for (size_t i = 0; i < arr->elements.size(); ++i) {
+            if (i > 0) out_ << ", ";
+            emit_expression(*arr->elements[i]);
+        }
+        out_ << "}";
+    } else if (auto* rep = dynamic_cast<const ArrayRepeatExpr*>(&expr)) {
+        out_ << "{";
+        for (size_t i = 0; i < rep->count; ++i) {
+            if (i > 0) out_ << ", ";
+            emit_expression(*rep->value);
+        }
+        out_ << "}";
+    } else if (auto* idx = dynamic_cast<const IndexExpr*>(&expr)) {
+        if (aerospace_profile_ && idx->target->evaluated_type.kind == BaseTypeKind::Array && idx->target->evaluated_type.array_size > 0) {
+            out_ << "(__OXIDE_BOUNDS_CHECK(";
+            emit_expression(*idx->target);
+            out_ << ", ";
+            emit_expression(*idx->index);
+            out_ << ", " << idx->target->evaluated_type.array_size << ")[";
+            emit_expression(*idx->index);
+            out_ << "])";
+        } else {
+            emit_expression(*idx->target);
+            out_ << "[";
+            emit_expression(*idx->index);
+            out_ << "]";
+        }
+    } else if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        if (auto* range = dynamic_cast<const RangeExpr*>(for_expr->iterable.get())) {
+            out_ << "for (int32_t " << for_expr->var_name << " = ";
+            emit_expression(*range->start);
+            out_ << "; " << for_expr->var_name << " < ";
+            emit_expression(*range->end);
+            out_ << "; ++" << for_expr->var_name << ") ";
+            emit_block(*for_expr->body, false);
+        }
     }
 }
 

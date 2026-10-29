@@ -347,6 +347,85 @@ Type TypeChecker::check_expression(Expression& expr) {
         return bool_lit->evaluated_type;
     }
 
+    if (auto* str_lit = dynamic_cast<StringLiteralExpr*>(&expr)) {
+        str_lit->evaluated_type = Type{BaseTypeKind::Str, "str", true, false};
+        return str_lit->evaluated_type;
+    }
+
+    if (auto* arr = dynamic_cast<ArrayLiteralExpr*>(&expr)) {
+        if (arr->elements.empty()) {
+            arr->evaluated_type = Type{BaseTypeKind::Array, "", false, false, {Type{BaseTypeKind::Unit, false, false}}, 0};
+            return arr->evaluated_type;
+        }
+        Type elem_t = check_expression(*arr->elements[0]);
+        for (size_t i = 1; i < arr->elements.size(); ++i) {
+            Type t = check_expression(*arr->elements[i]);
+            if (!(t == elem_t)) {
+                emit_error(arr->elements[i]->location, "mismatched types in array element: expected '" +
+                           elem_t.to_string() + "', found '" + t.to_string() + "'");
+            }
+        }
+        arr->evaluated_type = Type{BaseTypeKind::Array, "", false, false, {elem_t}, arr->elements.size()};
+        return arr->evaluated_type;
+    }
+
+    if (auto* rep = dynamic_cast<ArrayRepeatExpr*>(&expr)) {
+        Type elem_t = check_expression(*rep->value);
+        rep->evaluated_type = Type{BaseTypeKind::Array, "", false, false, {elem_t}, rep->count};
+        return rep->evaluated_type;
+    }
+
+    if (auto* idx = dynamic_cast<IndexExpr*>(&expr)) {
+        Type target_t = check_expression(*idx->target);
+        Type idx_t = check_expression(*idx->index);
+        if (idx_t.kind != BaseTypeKind::I32) {
+            emit_error(idx->index->location, "mismatched types: array index must be 'i32', found '" + idx_t.to_string() + "'");
+        }
+        if (target_t.kind != BaseTypeKind::Array && target_t.kind != BaseTypeKind::Slice) {
+            emit_error(idx->target->location, "cannot index into type '" + target_t.to_string() + "'");
+            idx->evaluated_type = Type{BaseTypeKind::I32, false, false};
+            return idx->evaluated_type;
+        }
+        if (auto* int_lit = dynamic_cast<IntegerLiteralExpr*>(idx->index.get())) {
+            if (target_t.kind == BaseTypeKind::Array && target_t.array_size > 0) {
+                if (int_lit->value < 0 || (size_t)int_lit->value >= target_t.array_size) {
+                    emit_error(idx->location, "index out of bounds: the length is " +
+                               std::to_string(target_t.array_size) + " but the index is " +
+                               std::to_string(int_lit->value));
+                }
+            }
+        }
+        Type elem_t = target_t.type_args.empty() ? Type{BaseTypeKind::I32, false, false} : target_t.type_args[0];
+        idx->evaluated_type = elem_t;
+        return idx->evaluated_type;
+    }
+
+    if (auto* range = dynamic_cast<RangeExpr*>(&expr)) {
+        Type start_t = check_expression(*range->start);
+        Type end_t = check_expression(*range->end);
+        if (start_t.kind != BaseTypeKind::I32 || end_t.kind != BaseTypeKind::I32) {
+            emit_error(range->location, "range bounds must be 'i32'");
+        }
+        range->evaluated_type = Type{BaseTypeKind::Named, "Range", false, false, {start_t}};
+        return range->evaluated_type;
+    }
+
+    if (auto* for_expr = dynamic_cast<ForExpr*>(&expr)) {
+        Type iter_t = check_expression(*for_expr->iterable);
+        Type elem_t{BaseTypeKind::I32, false, false};
+        if (iter_t.kind == BaseTypeKind::Named && iter_t.name == "Range") {
+            elem_t = iter_t.type_args.empty() ? Type{BaseTypeKind::I32, false, false} : iter_t.type_args[0];
+        } else if (iter_t.kind == BaseTypeKind::Array || iter_t.kind == BaseTypeKind::Slice) {
+            elem_t = iter_t.type_args.empty() ? Type{BaseTypeKind::I32, false, false} : iter_t.type_args[0];
+        }
+        enter_scope();
+        declare_variable(for_expr->var_name, elem_t, false, for_expr->location);
+        check_block(*for_expr->body, Type{BaseTypeKind::Unit, "", false, false}, false);
+        exit_scope();
+        for_expr->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+        return for_expr->evaluated_type;
+    }
+
     if (auto* var_expr = dynamic_cast<VariableExpr*>(&expr)) {
         auto var_info = lookup_variable(var_expr->name);
         if (!var_info) {
@@ -451,6 +530,36 @@ Type TypeChecker::check_expression(Expression& expr) {
     }
 
     if (auto* call = dynamic_cast<CallExpr*>(&expr)) {
+        if (call->callee == "println!") {
+            for (auto& a : call->arguments) {
+                check_expression(*a);
+            }
+            call->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+            return call->evaluated_type;
+        }
+        if (call->callee == "assert!") {
+            if (call->arguments.empty() || call->arguments.size() > 2) {
+                emit_error(call->location, "assert! takes 1 or 2 arguments");
+            } else {
+                Type cond_t = check_expression(*call->arguments[0]);
+                if (cond_t.kind != BaseTypeKind::Bool) {
+                    emit_error(call->arguments[0]->location, "mismatched types: expected 'bool', found '" + cond_t.to_string() + "'");
+                }
+                if (call->arguments.size() > 1) {
+                    check_expression(*call->arguments[1]);
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+            return call->evaluated_type;
+        }
+        if (call->callee == "panic!") {
+            for (auto& a : call->arguments) {
+                check_expression(*a);
+            }
+            call->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");

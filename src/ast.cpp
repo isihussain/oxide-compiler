@@ -15,6 +15,15 @@ std::string Type::to_string() const {
         case BaseTypeKind::Unit: s += "()"; break;
         case BaseTypeKind::I32: s += "i32"; break;
         case BaseTypeKind::Bool: s += "bool"; break;
+        case BaseTypeKind::Str: s += "str"; break;
+        case BaseTypeKind::Array: {
+            s += "[" + (type_args.empty() ? "?" : type_args[0].to_string()) + "; " + std::to_string(array_size) + "]";
+            break;
+        }
+        case BaseTypeKind::Slice: {
+            s += "[" + (type_args.empty() ? "?" : type_args[0].to_string()) + "]";
+            break;
+        }
         case BaseTypeKind::Named: {
             s += name;
             if (!type_args.empty()) {
@@ -38,6 +47,15 @@ std::string Type::mangled_name() const {
         case BaseTypeKind::Unit: s = "unit"; break;
         case BaseTypeKind::I32: s = "i32"; break;
         case BaseTypeKind::Bool: s = "bool"; break;
+        case BaseTypeKind::Str: s = "str"; break;
+        case BaseTypeKind::Array: {
+            s = "arr_" + std::to_string(array_size) + "_" + (type_args.empty() ? "void" : type_args[0].mangled_name());
+            break;
+        }
+        case BaseTypeKind::Slice: {
+            s = "slice_" + (type_args.empty() ? "void" : type_args[0].mangled_name());
+            break;
+        }
         case BaseTypeKind::Named: {
             s = name;
             for (const auto& arg : type_args) {
@@ -219,6 +237,46 @@ void MatchExpr::dump(int indent) const {
         }
         if (arm.body) arm.body->dump(indent + 3);
     }
+}
+
+void StringLiteralExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "StringLiteralExpr(\"" << value << "\")\n";
+}
+
+void ArrayLiteralExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "ArrayLiteralExpr : " << evaluated_type.to_string() << "\n";
+    for (const auto& el : elements) {
+        el->dump(indent + 1);
+    }
+}
+
+void ArrayRepeatExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "ArrayRepeatExpr (count=" << count << ") : " << evaluated_type.to_string() << "\n";
+    if (value) value->dump(indent + 1);
+}
+
+void IndexExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "IndexExpr : " << evaluated_type.to_string() << "\n";
+    if (target) target->dump(indent + 1);
+    if (index) index->dump(indent + 1);
+}
+
+void RangeExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "RangeExpr\n";
+    if (start) start->dump(indent + 1);
+    if (end) end->dump(indent + 1);
+}
+
+void ForExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "ForExpr (var=" << var_name << ")\n";
+    if (iterable) iterable->dump(indent + 1);
+    if (body) body->dump(indent + 1);
 }
 
 void LetStmt::dump(int indent) const {

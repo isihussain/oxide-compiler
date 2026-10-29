@@ -376,11 +376,32 @@ Type Parser::parse_type() {
         type.kind = BaseTypeKind::I32;
     } else if (match(TokenType::TypeBool)) {
         type.kind = BaseTypeKind::Bool;
+    } else if (match(TokenType::TypeStr)) {
+        type.kind = BaseTypeKind::Str;
+        type.name = "str";
+    } else if (match(TokenType::LBracket)) {
+        Type elem = parse_type();
+        if (match(TokenType::Semicolon)) {
+            Token sz = consume(TokenType::LiteralInt, "Expected array size integer after ';'");
+            consume(TokenType::RBracket, "Expected ']' after array size");
+            type.kind = BaseTypeKind::Array;
+            type.type_args = {elem};
+            type.array_size = (size_t)sz.int_value;
+        } else {
+            consume(TokenType::RBracket, "Expected ']' or ';' in array/slice type");
+            type.kind = BaseTypeKind::Slice;
+            type.type_args = {elem};
+        }
     } else if (match(TokenType::LParen)) {
         consume(TokenType::RParen, "Expected ')' for unit type '()'");
         type.kind = BaseTypeKind::Unit;
     } else if (match(TokenType::Identifier)) {
         std::string name = previous().text;
+        if (name == "str") {
+            type.kind = BaseTypeKind::Str;
+            type.name = "str";
+            return type;
+        }
         if (name == "Self" && !current_target_type_.empty()) {
             name = current_target_type_;
         }
@@ -428,6 +449,7 @@ std::unique_ptr<BlockExpr> Parser::parse_block() {
                 break;
             } else if (dynamic_cast<IfExpr*>(expr.get()) ||
                        dynamic_cast<WhileExpr*>(expr.get()) ||
+                       dynamic_cast<ForExpr*>(expr.get()) ||
                        dynamic_cast<BlockExpr*>(expr.get())) {
                 // In Rust, expressions ending with '}' do not require a semicolon
                 block->statements.push_back(std::make_unique<ExprStmt>(std::move(expr), expr->location));
@@ -473,6 +495,7 @@ std::unique_ptr<Expression> Parser::parse_assignment() {
         SourceLocation loc = previous().location;
         bool is_valid_lvalue = (dynamic_cast<VariableExpr*>(expr.get()) != nullptr) ||
                                (dynamic_cast<FieldAccessExpr*>(expr.get()) != nullptr) ||
+                               (dynamic_cast<IndexExpr*>(expr.get()) != nullptr) ||
                                (dynamic_cast<UnaryExpr*>(expr.get()) != nullptr &&
                                 dynamic_cast<UnaryExpr*>(expr.get())->op == UnaryOp::Deref);
 
@@ -489,6 +512,12 @@ std::unique_ptr<Expression> Parser::parse_assignment() {
 
 std::unique_ptr<Expression> Parser::parse_equality() {
     auto expr = parse_comparison();
+
+    if (match(TokenType::DotDot)) {
+        SourceLocation loc = previous().location;
+        auto right = parse_comparison();
+        return std::make_unique<RangeExpr>(std::move(expr), std::move(right), loc);
+    }
 
     while (match(TokenType::EqEq) || match(TokenType::NotEq)) {
         TokenType op_type = previous().type;
@@ -598,6 +627,11 @@ std::unique_ptr<Expression> Parser::parse_unary() {
             } else {
                 expr = std::make_unique<FieldAccessExpr>(std::move(expr), member_tok.text, member_tok.location);
             }
+        } else if (match(TokenType::LBracket)) {
+            SourceLocation idx_loc = previous().location;
+            auto index = parse_expression();
+            consume(TokenType::RBracket, "Expected ']' after index expression");
+            expr = std::make_unique<IndexExpr>(std::move(expr), std::move(index), idx_loc);
         } else {
             break;
         }
@@ -620,12 +654,41 @@ std::unique_ptr<Expression> Parser::parse_primary() {
         return std::make_unique<BoolLiteralExpr>(previous().bool_value, loc);
     }
 
+    if (match(TokenType::LiteralString)) {
+        return std::make_unique<StringLiteralExpr>(previous().text, loc);
+    }
+
+    if (match(TokenType::LBracket)) {
+        if (check(TokenType::RBracket)) {
+            advance();
+            return std::make_unique<ArrayLiteralExpr>(std::vector<std::unique_ptr<Expression>>{}, loc);
+        }
+        auto first = parse_expression();
+        if (match(TokenType::Semicolon)) {
+            Token count_tok = consume(TokenType::LiteralInt, "Expected integer repeat count after ';'");
+            consume(TokenType::RBracket, "Expected ']' after repeat count");
+            return std::make_unique<ArrayRepeatExpr>(std::move(first), (size_t)count_tok.int_value, loc);
+        }
+        std::vector<std::unique_ptr<Expression>> elems;
+        elems.push_back(std::move(first));
+        while (match(TokenType::Comma)) {
+            if (check(TokenType::RBracket)) break;
+            elems.push_back(parse_expression());
+        }
+        consume(TokenType::RBracket, "Expected ']' to terminate array literal");
+        return std::make_unique<ArrayLiteralExpr>(std::move(elems), loc);
+    }
+
     if (match(TokenType::KwIf)) {
         return parse_if_expression();
     }
 
     if (match(TokenType::KwWhile)) {
         return parse_while_expression();
+    }
+
+    if (match(TokenType::KwFor)) {
+        return parse_for_expression();
     }
 
     if (match(TokenType::KwReturn)) {
@@ -674,6 +737,19 @@ std::unique_ptr<Expression> Parser::parse_primary() {
         if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Lt) {
             advance(); // consume '::'
             type_args = parse_type_arguments();
+        }
+
+        // Macro call: ident!(...)
+        if (match(TokenType::Exclamation)) {
+            consume(TokenType::LParen, "Expected '(' after macro name '!'");
+            std::vector<std::unique_ptr<Expression>> args;
+            if (!check(TokenType::RParen)) {
+                do {
+                    args.push_back(parse_expression());
+                } while (match(TokenType::Comma));
+            }
+            consume(TokenType::RParen, "Expected ')' after macro arguments");
+            return std::make_unique<CallExpr>(name + "!", std::move(args), loc);
         }
 
         // Function call: ident(...)
@@ -803,6 +879,15 @@ std::unique_ptr<MatchExpr> Parser::parse_match_expression() {
 
     consume(TokenType::RBrace, "Expected '}' to close match expression");
     return std::make_unique<MatchExpr>(std::move(target), std::move(arms), loc);
+}
+
+std::unique_ptr<ForExpr> Parser::parse_for_expression() {
+    SourceLocation loc = previous().location;
+    Token var_tok = consume(TokenType::Identifier, "Expected loop variable name after 'for'");
+    consume(TokenType::KwIn, "Expected 'in' after loop variable in 'for'");
+    auto iterable = parse_expression();
+    auto body = parse_block();
+    return std::make_unique<ForExpr>(var_tok.text, std::move(iterable), std::move(body), loc);
 }
 
 } // namespace oxide

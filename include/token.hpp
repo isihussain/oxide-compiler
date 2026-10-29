@@ -25,6 +25,7 @@ enum class TokenType {
     KwTrait,
     KwImpl,
     KwFor,
+    KwIn,
     KwSelfValue,
     KwExtern,
     KwTrue,
@@ -33,6 +34,7 @@ enum class TokenType {
     // Types
     TypeI32,
     TypeBool,
+    TypeStr,
 
     // Literals
     LiteralInt,
@@ -49,6 +51,7 @@ enum class TokenType {
     Star,          // *
     Slash,         // /
     Dot,           // .
+    DotDot,        // ..
     Eq,            // =
     EqEq,          // ==
     NotEq,         // !=
@@ -68,6 +71,8 @@ enum class TokenType {
     RParen,        // )
     LBrace,        // {
     RBrace,        // }
+    LBracket,      // [
+    RBracket,      // ]
 };
 
 struct SourceLocation {

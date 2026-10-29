@@ -174,6 +174,32 @@ void CFGBuilder::lower_expression(const Expression& expr, BlockId& current_bb) {
                 return;
             }
         }
+
+        if (auto* idx = dynamic_cast<const IndexExpr*>(assign->target.get())) {
+            std::string base_var;
+            const Expression* cur = idx->target.get();
+            while (auto* inner_idx = dynamic_cast<const IndexExpr*>(cur)) {
+                cur = inner_idx->target.get();
+            }
+            if (auto* var = dynamic_cast<const VariableExpr*>(cur)) {
+                base_var = var->name;
+            }
+
+            std::vector<std::string> reads;
+            collect_read_vars(*assign->value, reads);
+            collect_read_vars(*idx->index, reads);
+            if (!base_var.empty()) {
+                reads.push_back(base_var);
+            }
+
+            CFGStatement s;
+            s.kind = CFGStmtKind::AssignIndex;
+            s.target_var = base_var;
+            s.read_vars = reads;
+            s.location = assign->location;
+            cfg_.blocks[current_bb].statements.push_back(std::move(s));
+            return;
+        }
     }
 
     if (auto* if_expr = dynamic_cast<const IfExpr*>(&expr)) {
@@ -249,6 +275,52 @@ void CFGBuilder::lower_expression(const Expression& expr, BlockId& current_bb) {
         if (cfg_.blocks[body_cur].terminator.kind == TerminatorKind::None) {
             cfg_.blocks[body_cur].terminator = CFGTerminator{
                 TerminatorKind::Goto, "", 0, 0, header_bb, "", while_expr->location
+            };
+        }
+
+        current_bb = exit_bb;
+        return;
+    }
+
+    if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        cfg_.var_is_mut[for_expr->var_name] = false;
+        cfg_.var_loc[for_expr->var_name] = for_expr->location;
+
+        BlockId header_bb = cfg_.new_block();
+        BlockId body_bb = cfg_.new_block();
+        BlockId exit_bb = cfg_.new_block();
+
+        std::vector<std::string> iter_reads;
+        collect_read_vars(*for_expr->iterable, iter_reads);
+
+        cfg_.blocks[current_bb].terminator = CFGTerminator{
+            TerminatorKind::Goto, "", 0, 0, header_bb, "", for_expr->location
+        };
+
+        CFGStatement cond_stmt;
+        cond_stmt.kind = CFGStmtKind::EvalExpr;
+        cond_stmt.read_vars = iter_reads;
+        cond_stmt.location = for_expr->location;
+        cfg_.blocks[header_bb].statements.push_back(std::move(cond_stmt));
+
+        cfg_.blocks[header_bb].terminator = CFGTerminator{
+            TerminatorKind::Branch, "", body_bb, exit_bb, 0, "", for_expr->location
+        };
+
+        BlockId body_cur = body_bb;
+        CFGStatement loop_var_init;
+        loop_var_init.kind = CFGStmtKind::AssignVar;
+        loop_var_init.target_var = for_expr->var_name;
+        loop_var_init.read_vars = iter_reads;
+        loop_var_init.location = for_expr->location;
+        cfg_.blocks[body_cur].statements.push_back(std::move(loop_var_init));
+
+        if (for_expr->body) {
+            lower_block(*for_expr->body, body_cur);
+        }
+        if (cfg_.blocks[body_cur].terminator.kind == TerminatorKind::None) {
+            cfg_.blocks[body_cur].terminator = CFGTerminator{
+                TerminatorKind::Goto, "", 0, 0, header_bb, "", for_expr->location
             };
         }
 
@@ -346,6 +418,30 @@ void CFGBuilder::collect_read_vars(const Expression& expr, std::vector<std::stri
         for (const auto& arm : match_expr->arms) {
             collect_read_vars(*arm.body, reads);
         }
+        return;
+    }
+    if (auto* arr = dynamic_cast<const ArrayLiteralExpr*>(&expr)) {
+        for (const auto& el : arr->elements) {
+            collect_read_vars(*el, reads);
+        }
+        return;
+    }
+    if (auto* rep = dynamic_cast<const ArrayRepeatExpr*>(&expr)) {
+        collect_read_vars(*rep->value, reads);
+        return;
+    }
+    if (auto* idx = dynamic_cast<const IndexExpr*>(&expr)) {
+        collect_read_vars(*idx->target, reads);
+        collect_read_vars(*idx->index, reads);
+        return;
+    }
+    if (auto* range = dynamic_cast<const RangeExpr*>(&expr)) {
+        collect_read_vars(*range->start, reads);
+        collect_read_vars(*range->end, reads);
+        return;
+    }
+    if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        collect_read_vars(*for_expr->iterable, reads);
         return;
     }
 }
