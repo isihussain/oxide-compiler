@@ -11,6 +11,7 @@ SRCS = $(SRC_DIR)/lexer.cpp \
        $(SRC_DIR)/typeck.cpp \
        $(SRC_DIR)/borrowck.cpp \
        $(SRC_DIR)/codegen_c.cpp \
+       $(SRC_DIR)/aerospace.cpp \
        $(SRC_DIR)/main.cpp
 
 OBJS = $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SRCS))

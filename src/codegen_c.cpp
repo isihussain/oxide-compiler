@@ -2,7 +2,8 @@
 
 namespace oxide {
 
-CCodeGenerator::CCodeGenerator(const Program& program) : program_(program) {}
+CCodeGenerator::CCodeGenerator(const Program& program, bool aerospace_profile)
+    : program_(program), aerospace_profile_(aerospace_profile) {}
 
 void CCodeGenerator::indent() {
     for (int i = 0; i < indent_level_; ++i) {
@@ -41,6 +42,9 @@ std::string CCodeGenerator::generate() {
     out_.clear();
 
     emit_includes();
+    if (aerospace_profile_) {
+        emit_aerospace_traps();
+    }
     emit_struct_declarations();
     emit_forward_declarations();
 
@@ -56,6 +60,46 @@ void CCodeGenerator::emit_includes() {
     line("#include <stdint.h>");
     line("#include <stdbool.h>");
     line("#include <stdio.h>");
+    line("#include <stdlib.h>");
+    line();
+}
+
+void CCodeGenerator::emit_aerospace_traps() {
+    line("/* Safety-Critical / Aerospace Overflow Traps (NASA/JPL & Ariane 5 Mitigation) */");
+    line("static inline int32_t __oxide_checked_add(int32_t a, int32_t b) {");
+    line("    int32_t res;");
+    line("    if (__builtin_add_overflow(a, b, &res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: integer overflow in addition\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline int32_t __oxide_checked_sub(int32_t a, int32_t b) {");
+    line("    int32_t res;");
+    line("    if (__builtin_sub_overflow(a, b, &res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: integer overflow in subtraction\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline int32_t __oxide_checked_mul(int32_t a, int32_t b) {");
+    line("    int32_t res;");
+    line("    if (__builtin_mul_overflow(a, b, &res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: integer overflow in multiplication\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline int32_t __oxide_checked_div(int32_t a, int32_t b) {");
+    line("    if (b == 0) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: division by zero\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return a / b;");
+    line("}");
     line();
 }
 
@@ -170,22 +214,39 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
     } else if (auto* var = dynamic_cast<const VariableExpr*>(&expr)) {
         out_ << var->name;
     } else if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
-        out_ << "(";
-        emit_expression(*bin->left);
-        switch (bin->op) {
-            case BinaryOp::Add: out_ << " + "; break;
-            case BinaryOp::Sub: out_ << " - "; break;
-            case BinaryOp::Mul: out_ << " * "; break;
-            case BinaryOp::Div: out_ << " / "; break;
-            case BinaryOp::Equal: out_ << " == "; break;
-            case BinaryOp::NotEqual: out_ << " != "; break;
-            case BinaryOp::Less: out_ << " < "; break;
-            case BinaryOp::LessEqual: out_ << " <= "; break;
-            case BinaryOp::Greater: out_ << " > "; break;
-            case BinaryOp::GreaterEqual: out_ << " >= "; break;
+        if (aerospace_profile_ && (bin->op == BinaryOp::Add || bin->op == BinaryOp::Sub ||
+                                   bin->op == BinaryOp::Mul || bin->op == BinaryOp::Div)) {
+            const char* fn_name = "";
+            switch (bin->op) {
+                case BinaryOp::Add: fn_name = "__oxide_checked_add"; break;
+                case BinaryOp::Sub: fn_name = "__oxide_checked_sub"; break;
+                case BinaryOp::Mul: fn_name = "__oxide_checked_mul"; break;
+                case BinaryOp::Div: fn_name = "__oxide_checked_div"; break;
+                default: break;
+            }
+            out_ << fn_name << "(";
+            emit_expression(*bin->left);
+            out_ << ", ";
+            emit_expression(*bin->right);
+            out_ << ")";
+        } else {
+            out_ << "(";
+            emit_expression(*bin->left);
+            switch (bin->op) {
+                case BinaryOp::Add: out_ << " + "; break;
+                case BinaryOp::Sub: out_ << " - "; break;
+                case BinaryOp::Mul: out_ << " * "; break;
+                case BinaryOp::Div: out_ << " / "; break;
+                case BinaryOp::Equal: out_ << " == "; break;
+                case BinaryOp::NotEqual: out_ << " != "; break;
+                case BinaryOp::Less: out_ << " < "; break;
+                case BinaryOp::LessEqual: out_ << " <= "; break;
+                case BinaryOp::Greater: out_ << " > "; break;
+                case BinaryOp::GreaterEqual: out_ << " >= "; break;
+            }
+            emit_expression(*bin->right);
+            out_ << ")";
         }
-        emit_expression(*bin->right);
-        out_ << ")";
     } else if (auto* un = dynamic_cast<const UnaryExpr*>(&expr)) {
         switch (un->op) {
             case UnaryOp::Negate: out_ << "(-"; break;

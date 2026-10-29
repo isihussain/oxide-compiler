@@ -146,6 +146,7 @@ void TypeChecker::check_statement(Statement& stmt) {
                 }
             } else {
                 deduced_type = init_type;
+                let->declared_type = init_type;
             }
         }
         declare_variable(let->var_name, deduced_type, let->is_mutable, let->location);

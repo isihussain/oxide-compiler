@@ -8,11 +8,12 @@ namespace oxide {
 
 class CCodeGenerator {
 public:
-    explicit CCodeGenerator(const Program& program);
+    explicit CCodeGenerator(const Program& program, bool aerospace_profile = false);
     std::string generate();
 
 private:
     void emit_includes();
+    void emit_aerospace_traps();
     void emit_struct_declarations();
     void emit_forward_declarations();
     void emit_function(const Function& func);
@@ -22,6 +23,7 @@ private:
     std::string map_type(const Type& type);
 
     const Program& program_;
+    bool aerospace_profile_ = false;
     std::stringstream out_;
     int indent_level_ = 0;
 

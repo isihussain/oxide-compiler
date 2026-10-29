@@ -1,3 +1,4 @@
+#include "aerospace.hpp"
 #include "ast.hpp"
 #include "borrowck.hpp"
 #include "codegen_c.hpp"
@@ -15,12 +16,13 @@ void print_usage(const char* prog) {
     std::cout << "Oxide - Independent Rust Compiler (Milestone 1 Core)\n"
               << "Usage: " << prog << " [options] <input.rs>\n\n"
               << "Options:\n"
-              << "  -o <file>       Compile to executable binary (via host C toolchain)\n"
-              << "  --emit-ast      Dump the Abstract Syntax Tree (AST)\n"
-              << "  --emit-c        Output generated C99 code\n"
-              << "  --check         Run type checking and borrow checking only\n"
-              << "  -v, --version   Display compiler version\n"
-              << "  -h, --help      Display this help message\n";
+              << "  -o <file>             Compile to executable binary (via host C toolchain)\n"
+              << "  --emit-ast            Dump the Abstract Syntax Tree (AST)\n"
+              << "  --emit-c              Output generated C99 code\n"
+              << "  --check               Run type checking and borrow checking only\n"
+              << "  --profile=aerospace   Enable safety-critical verification and checked arithmetic\n"
+              << "  -v, --version         Display compiler version\n"
+              << "  -h, --help            Display this help message\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -34,6 +36,7 @@ int main(int argc, char* argv[]) {
     bool emit_ast = false;
     bool emit_c = false;
     bool check_only = false;
+    bool aerospace_profile = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -49,6 +52,8 @@ int main(int argc, char* argv[]) {
             emit_c = true;
         } else if (arg == "--check") {
             check_only = true;
+        } else if (arg == "--profile=aerospace") {
+            aerospace_profile = true;
         } else if (arg == "-o") {
             if (i + 1 < argc) {
                 output_bin = argv[++i];
@@ -117,6 +122,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // 5. Aerospace Safety-Critical Verification (NASA/JPL Rule 3: bounded recursion)
+    if (aerospace_profile) {
+        oxide::AerospaceVerifier aero(*program);
+        if (!aero.verify()) {
+            for (const auto& err : aero.errors()) {
+                std::cerr << "oxide: " << err << "\n";
+            }
+            return 1;
+        }
+    }
+
     if (emit_ast) {
         program->dump();
         return 0;
@@ -127,8 +143,8 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    // 5. Code Generation (C99)
-    oxide::CCodeGenerator codegen(*program);
+    // 6. Code Generation (C99)
+    oxide::CCodeGenerator codegen(*program, aerospace_profile);
     std::string c_code = codegen.generate();
 
     if (emit_c && output_bin.empty()) {

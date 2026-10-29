@@ -37,6 +37,9 @@ Rust Source (.rs)
   - Mutable references (`&mut`) to immutable locals are rejected.
   - Simultaneous mutable and immutable aliasing is rejected.
   - Use of uninitialized variables is rejected.
+* **Aerospace Verifier (`include/aerospace.hpp`, `src/aerospace.cpp`)**: Enforces safety-critical constraints under `--profile=aerospace`:
+  - Rejects direct and indirect recursion via call-graph cycle analysis (NASA/JPL Flight Software Rule 3).
+  - Emits checked arithmetic traps (`__builtin_add_overflow`, etc.) to prevent unhandled integer overflow failures (Ariane 5 mitigation).
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references) into equivalent C constructs.
 
 ---
@@ -83,6 +86,11 @@ echo $? # Output: 42
 ./bin/oxide --check tests/ui/fail_immut_assign.rs
 ```
 
+### 5. Compiling with the Aerospace Verification Profile
+```bash
+./bin/oxide --profile=aerospace -o bin/flight_guidance examples/09_aerospace_profile.rs
+```
+
 ---
 
 ## Running the Conformance Test Suite
@@ -105,6 +113,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 06_mutable_struct.rs (exit code: 42)
 [PASS] 07_mutable_reference.rs (exit code: 42)
 [PASS] 08_extern_c_abi.rs (exit code: 42)
+[PASS] 09_aerospace_profile.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -116,8 +125,10 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_deref_immutable_ref_assign.rs (correctly rejected)
 [PASS] fail_extern_type_mismatch.rs (correctly rejected)
 [PASS] fail_extern_arity_mismatch.rs (correctly rejected)
+[PASS] fail_aerospace_recursion.rs (correctly rejected)
+[PASS] fail_aerospace_mutual_recursion.rs (correctly rejected)
 ==================================================
-Results: 19/19 tests passed.
+Results: 22/22 tests passed.
 ```
 
 ---

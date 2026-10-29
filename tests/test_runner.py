@@ -16,24 +16,28 @@ def run():
 
     # Positive Tests (Execution & Result Check)
     positive_tests = [
-        ("examples/01_simple_arithmetic.rs", 42),
-        ("examples/02_control_flow.rs", 42),
-        ("examples/03_mutability.rs", 10),
-        ("examples/04_structs.rs", 42),
-        ("examples/05_while_loop.rs", 55),
-        ("examples/06_mutable_struct.rs", 42),
-        ("examples/07_mutable_reference.rs", 42),
-        ("examples/08_extern_c_abi.rs", 42),
+        ("examples/01_simple_arithmetic.rs", 42, []),
+        ("examples/02_control_flow.rs", 42, []),
+        ("examples/03_mutability.rs", 10, []),
+        ("examples/04_structs.rs", 42, []),
+        ("examples/05_while_loop.rs", 55, []),
+        ("examples/06_mutable_struct.rs", 42, []),
+        ("examples/07_mutable_reference.rs", 42, []),
+        ("examples/08_extern_c_abi.rs", 42, []),
+        ("examples/09_aerospace_profile.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
     total = 0
 
-    for path_str, expected_exit in positive_tests:
+    for item in positive_tests:
+        path_str, expected_exit = item[0], item[1]
+        extra_flags = item[2] if len(item) > 2 else []
         total += 1
         src = root / path_str
         bin_out = root / "build" / f"test_{src.stem}"
-        build_res = subprocess.run([str(compiler), "-o", str(bin_out), str(src)], capture_output=True, text=True)
+        cmd = [str(compiler)] + extra_flags + ["-o", str(bin_out), str(src)]
+        build_res = subprocess.run(cmd, capture_output=True, text=True)
         if build_res.returncode != 0:
             print(f"[FAIL] {src.name}: compilation failed\n{build_res.stderr}")
             continue
@@ -47,27 +51,33 @@ def run():
 
     # Negative Tests (Expected compilation failures)
     negative_tests = [
-        ("tests/ui/fail_immut_assign.rs", "cannot assign twice to immutable variable"),
-        ("tests/ui/fail_type_mismatch.rs", "mismatched types"),
-        ("tests/ui/fail_uninit.rs", "use of possibly-uninitialized variable"),
-        ("tests/ui/fail_struct_unknown_field.rs", "has no field named"),
-        ("tests/ui/fail_struct_missing_field.rs", "missing field"),
-        ("tests/ui/fail_struct_invalid_field_access.rs", "no field"),
-        ("tests/ui/fail_while_non_bool_condition.rs", "expected 'bool'"),
-        ("tests/ui/fail_assign_immutable_field.rs", "cannot assign to field"),
-        ("tests/ui/fail_deref_immutable_ref_assign.rs", "cannot assign to dereference of immutable reference"),
-        ("tests/ui/fail_extern_type_mismatch.rs", "mismatched type in argument 1"),
-        ("tests/ui/fail_extern_arity_mismatch.rs", "takes 1 arguments but 2 were supplied"),
+        ("tests/ui/fail_immut_assign.rs", "cannot assign twice to immutable variable", []),
+        ("tests/ui/fail_type_mismatch.rs", "mismatched types", []),
+        ("tests/ui/fail_uninit.rs", "use of possibly-uninitialized variable", []),
+        ("tests/ui/fail_struct_unknown_field.rs", "has no field named", []),
+        ("tests/ui/fail_struct_missing_field.rs", "missing field", []),
+        ("tests/ui/fail_struct_invalid_field_access.rs", "no field", []),
+        ("tests/ui/fail_while_non_bool_condition.rs", "expected 'bool'", []),
+        ("tests/ui/fail_assign_immutable_field.rs", "cannot assign to field", []),
+        ("tests/ui/fail_deref_immutable_ref_assign.rs", "cannot assign to dereference of immutable reference", []),
+        ("tests/ui/fail_extern_type_mismatch.rs", "mismatched type in argument 1", []),
+        ("tests/ui/fail_extern_arity_mismatch.rs", "takes 1 arguments but 2 were supplied", []),
+        ("tests/ui/fail_aerospace_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
+        ("tests/ui/fail_aerospace_mutual_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
     ]
 
-    for path_str, expected_err_sub in negative_tests:
+    for item in negative_tests:
+        path_str, expected_err_sub = item[0], item[1]
+        extra_flags = item[2] if len(item) > 2 else []
         total += 1
         src = root / path_str
-        res = subprocess.run([str(compiler), "--check", str(src)], capture_output=True, text=True)
+        cmd = [str(compiler), "--check"] + extra_flags + [str(src)]
+        res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0 and expected_err_sub in res.stderr:
             print(f"[PASS] {src.name} (correctly rejected)")
             passed += 1
         else:
+            print(f"[FAIL] {src.name}: expected error containing '{expected_err_sub}', output:\n{res.stderr}")
             print(f"[FAIL] {src.name}: expected error containing '{expected_err_sub}', output:\n{res.stderr}")
 
     print("=" * 50)
