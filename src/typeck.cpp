@@ -791,7 +791,38 @@ Type TypeChecker::check_expression(Expression& expr) {
     if (auto* mc = dynamic_cast<MethodCallExpr*>(&expr)) {
         Type receiver_t = check_expression(*mc->receiver);
         std::string base_struct = receiver_t.name;
-        if (receiver_t.kind != BaseTypeKind::Named || struct_table_.find(base_struct) == struct_table_.end()) {
+
+        // Core standard library methods on Option and Result
+        if (base_struct == "Option") {
+            if (mc->method_name == "is_some" || mc->method_name == "is_none") {
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->resolved_callee = "Option__" + mc->method_name;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "unwrap") {
+                mc->resolved_self_kind = SelfKind::Value;
+                mc->resolved_callee = "Option__unwrap";
+                mc->evaluated_type = receiver_t.type_args.empty() ? Type{BaseTypeKind::I32, false, false} : receiver_t.type_args[0];
+                return mc->evaluated_type;
+            }
+        }
+        if (base_struct == "Result") {
+            if (mc->method_name == "is_ok" || mc->method_name == "is_err") {
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->resolved_callee = "Result__" + mc->method_name;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "unwrap") {
+                mc->resolved_self_kind = SelfKind::Value;
+                mc->resolved_callee = "Result__unwrap";
+                mc->evaluated_type = receiver_t.type_args.empty() ? Type{BaseTypeKind::I32, false, false} : receiver_t.type_args[0];
+                return mc->evaluated_type;
+            }
+        }
+
+        if (receiver_t.kind != BaseTypeKind::Named || (struct_table_.find(base_struct) == struct_table_.end() && enum_table_.find(base_struct) == enum_table_.end())) {
             emit_error(mc->location, "cannot call method '" + mc->method_name + "' on non-struct type '" + receiver_t.to_string() + "'");
             mc->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
             return mc->evaluated_type;

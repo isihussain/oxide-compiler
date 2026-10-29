@@ -473,6 +473,51 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         }
         out_ << ")";
     } else if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        if (mc->resolved_callee == "Option__is_some") {
+            out_ << "((";
+            emit_expression(*mc->receiver);
+            out_ << ").tag == Option_Tag_Some)";
+            return;
+        }
+        if (mc->resolved_callee == "Option__is_none") {
+            out_ << "((";
+            emit_expression(*mc->receiver);
+            out_ << ").tag == Option_Tag_None)";
+            return;
+        }
+        if (mc->resolved_callee == "Option__unwrap") {
+            out_ << "((";
+            emit_expression(*mc->receiver);
+            out_ << ").tag == Option_Tag_Some ? (";
+            emit_expression(*mc->receiver);
+            out_ << ").data.Some : (fprintf(stderr, \"panicked at Option::unwrap() on None\\n\"), abort(), (";
+            emit_expression(*mc->receiver);
+            out_ << ").data.Some))";
+            return;
+        }
+        if (mc->resolved_callee == "Result__is_ok") {
+            out_ << "((";
+            emit_expression(*mc->receiver);
+            out_ << ").tag == Result_Tag_Ok)";
+            return;
+        }
+        if (mc->resolved_callee == "Result__is_err") {
+            out_ << "((";
+            emit_expression(*mc->receiver);
+            out_ << ").tag == Result_Tag_Err)";
+            return;
+        }
+        if (mc->resolved_callee == "Result__unwrap") {
+            out_ << "((";
+            emit_expression(*mc->receiver);
+            out_ << ").tag == Result_Tag_Ok ? (";
+            emit_expression(*mc->receiver);
+            out_ << ").data.Ok : (fprintf(stderr, \"panicked at Result::unwrap() on Err\\n\"), abort(), (";
+            emit_expression(*mc->receiver);
+            out_ << ").data.Ok))";
+            return;
+        }
+
         out_ << mc->resolved_callee << "(";
         if (mc->resolved_self_kind == SelfKind::Ref || mc->resolved_self_kind == SelfKind::RefMut) {
             if (mc->receiver->evaluated_type.is_ref) {
