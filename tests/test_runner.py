@@ -28,6 +28,7 @@ def run():
         ("examples/10_tagged_union_enums.rs", 42, []),
         ("examples/11_generics_monomorphization.rs", 42, []),
         ("examples/12_traits_and_impl.rs", 42, []),
+        ("examples/13_non_lexical_lifetimes.rs", 42, []),
     ]
 
     passed = 0
@@ -77,6 +78,10 @@ def run():
         ("tests/ui/fail_trait_signature_mismatch.rs", "method 'area' has an incompatible return type", []),
         ("tests/ui/fail_method_not_found.rs", "no method named 'non_existent' found for type 'Point'", []),
         ("tests/ui/fail_immutable_method_call.rs", "cannot borrow immutable local variable 'p' as mutable in method call", []),
+        ("tests/ui/fail_nll_mut_borrow_active.rs", "cannot assign to 'x' because it is borrowed", []),
+        ("tests/ui/fail_nll_assign_while_borrowed.rs", "cannot assign to 'x' because it is borrowed", []),
+        ("tests/ui/fail_nll_double_mut_borrow.rs", "cannot borrow 'x' as mutable more than once at a time", []),
+        ("tests/ui/fail_nll_while_loop_borrow.rs", "cannot assign to 'x' because it is borrowed", []),
     ]
 
     for item in negative_tests:

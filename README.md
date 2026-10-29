@@ -36,7 +36,10 @@ Rust Source (.rs)
 * **Parser (`include/parser.hpp`, `src/parser.cpp`)**: Recursive descent parser that constructs the AST. Implements operator precedence parsing for expressions, functions, `let` bindings, control flow (`if`/`else`), and trailing block return expressions.
 * **Type Checker (`include/typeck.hpp`, `src/typeck.cpp`)**: Enforces Rust's static typing rules. Manages lexical scopes, validates function call arity and parameter types, and ensures block evaluations match return types.
 * **Monomorphizer (`include/monomorphize.hpp`, `src/monomorphize.cpp`)**: Reifies generic functions and compound structs into concrete specialized AST instances.
+* **Control Flow Graph (`include/cfg.hpp`, `src/cfg.cpp`)**: Lowers the AST into basic blocks with explicit terminators (`Goto`, `Branch`, `Return`) and tracks variable reads/writes.
 * **Borrow Checker (`include/borrowck.hpp`, `src/borrowck.cpp`)**: Enforces core Rust memory safety rules:
+  - Computes variable liveness across basic blocks via backward dataflow analysis.
+  - Non-Lexical Lifetimes (NLL): loans remain active only while a holder reference variable is live.
   - Reassignment to immutable variables is rejected.
   - Mutable references (`&mut`) to immutable locals are rejected.
   - Simultaneous mutable and immutable aliasing is rejected.
@@ -121,6 +124,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 10_tagged_union_enums.rs (exit code: 42)
 [PASS] 11_generics_monomorphization.rs (exit code: 42)
 [PASS] 12_traits_and_impl.rs (exit code: 42)
+[PASS] 13_non_lexical_lifetimes.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -144,8 +148,12 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_trait_signature_mismatch.rs (correctly rejected)
 [PASS] fail_method_not_found.rs (correctly rejected)
 [PASS] fail_immutable_method_call.rs (correctly rejected)
+[PASS] fail_nll_mut_borrow_active.rs (correctly rejected)
+[PASS] fail_nll_assign_while_borrowed.rs (correctly rejected)
+[PASS] fail_nll_double_mut_borrow.rs (correctly rejected)
+[PASS] fail_nll_while_loop_borrow.rs (correctly rejected)
 ==================================================
-Results: 35/35 tests passed.
+Results: 40/40 tests passed.
 ```
 
 ---
@@ -171,9 +179,10 @@ Results: 35/35 tests passed.
   - [x] Parametric polymorphism (generics on functions and structs)
   - [x] Monomorphization pass
   - [x] Trait definitions and `impl` blocks
-- [ ] **Milestone 4: Full Borrow Checker (Polonius Algorithm)**
-  - [ ] Control Flow Graph (CFG) / Mid-level IR (MIR) lowering
-  - [ ] Non-Lexical Lifetimes (NLL) with loan origin tracking
+- [x] **Milestone 4: Control Flow Graph & Non-Lexical Lifetimes (NLL)**
+  - [x] Control Flow Graph (CFG) basic block lowering with explicit terminators
+  - [x] Backward dataflow liveness analysis
+  - [x] Non-Lexical Lifetimes (NLL) borrow checking and loan invalidation
 - [ ] **Milestone 5: Standalone Core Library Compilation**
   - [ ] Target Rust `core` library compilation
 
