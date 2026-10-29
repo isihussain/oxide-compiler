@@ -100,11 +100,15 @@ Running Oxide Conformance Test Suite...
 [PASS] 01_simple_arithmetic.rs (exit code: 42)
 [PASS] 02_control_flow.rs (exit code: 42)
 [PASS] 03_mutability.rs (exit code: 10)
+[PASS] 04_structs.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
+[PASS] fail_struct_unknown_field.rs (correctly rejected)
+[PASS] fail_struct_missing_field.rs (correctly rejected)
+[PASS] fail_struct_invalid_field_access.rs (correctly rejected)
 ==================================================
-Results: 6/6 tests passed.
+Results: 10/10 tests passed.
 ```
 
 ---
@@ -119,7 +123,8 @@ Results: 6/6 tests passed.
   - [x] Mutability enforcement and initialization checking
   - [x] C99 code generator
 - [ ] **Milestone 2: Structs, Enums, and Pattern Matching**
-  - [ ] Compound structs and tuple structs
+  - [x] Compound struct declarations
+  - [x] Struct literal instantiations and field access expressions
   - [ ] Tagged union enums with payload support
   - [ ] `match` pattern exhaustiveness checking
 - [ ] **Milestone 3: Generics and Traits**

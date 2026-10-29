@@ -1,4 +1,5 @@
 #include "typeck.hpp"
+#include <set>
 #include <sstream>
 
 namespace oxide {
@@ -41,6 +42,26 @@ std::optional<std::pair<Type, bool>> TypeChecker::lookup_variable(const std::str
     return std::nullopt;
 }
 
+void TypeChecker::register_structs() {
+    for (const auto& s : program_.structs) {
+        if (struct_table_.find(s->name) != struct_table_.end()) {
+            emit_error(s->location, "duplicate struct definition: '" + s->name + "'");
+            continue;
+        }
+        StructSignature sig;
+        sig.name = s->name;
+        sig.location = s->location;
+        for (const auto& f : s->fields) {
+            if (sig.fields.find(f.name) != sig.fields.end()) {
+                emit_error(f.location, "duplicate field '" + f.name + "' in struct '" + s->name + "'");
+            }
+            sig.fields[f.name] = f.type;
+            sig.field_order.push_back(f.name);
+        }
+        struct_table_[s->name] = std::move(sig);
+    }
+}
+
 void TypeChecker::register_functions() {
     for (const auto& fn : program_.functions) {
         if (function_table_.find(fn->name) != function_table_.end()) {
@@ -56,6 +77,7 @@ void TypeChecker::register_functions() {
 }
 
 bool TypeChecker::check() {
+    register_structs();
     register_functions();
     for (auto& fn : program_.functions) {
         check_function(*fn);
@@ -299,11 +321,68 @@ Type TypeChecker::check_expression(Expression& expr) {
     }
 
     if (auto* block = dynamic_cast<BlockExpr*>(&expr)) {
-        check_block(*block, Type{BaseTypeKind::Unit, false, false}, false);
+        check_block(*block, Type{BaseTypeKind::Unit, "", false, false}, false);
         return block->evaluated_type;
     }
 
-    return Type{BaseTypeKind::Unit, false, false};
+    if (auto* s_init = dynamic_cast<StructInitExpr*>(&expr)) {
+        auto it = struct_table_.find(s_init->struct_name);
+        if (it == struct_table_.end()) {
+            emit_error(s_init->location, "cannot find struct '" + s_init->struct_name + "' in this scope");
+            s_init->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return s_init->evaluated_type;
+        }
+        const auto& sig = it->second;
+        std::set<std::string> provided_fields;
+        for (auto& f : s_init->fields) {
+            if (provided_fields.count(f.field_name)) {
+                emit_error(f.location, "field '" + f.field_name + "' specified more than once");
+            }
+            provided_fields.insert(f.field_name);
+            auto field_it = sig.fields.find(f.field_name);
+            if (field_it == sig.fields.end()) {
+                emit_error(f.location, "struct '" + s_init->struct_name + "' has no field named '" + f.field_name + "'");
+            } else {
+                Type val_t = check_expression(*f.value);
+                if (!(val_t == field_it->second)) {
+                    emit_error(f.location, "mismatched type for field '" + f.field_name + "': expected '" +
+                               field_it->second.to_string() + "', found '" + val_t.to_string() + "'");
+                }
+            }
+        }
+        for (const auto& expected_field : sig.field_order) {
+            if (!provided_fields.count(expected_field)) {
+                emit_error(s_init->location, "missing field '" + expected_field + "' in initializer of '" + s_init->struct_name + "'");
+            }
+        }
+        s_init->evaluated_type = Type{BaseTypeKind::Named, s_init->struct_name, false, false};
+        return s_init->evaluated_type;
+    }
+
+    if (auto* fa = dynamic_cast<FieldAccessExpr*>(&expr)) {
+        Type target_t = check_expression(*fa->target);
+        if (target_t.kind != BaseTypeKind::Named) {
+            emit_error(fa->location, "type '" + target_t.to_string() + "' does not have fields");
+            fa->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return fa->evaluated_type;
+        }
+        auto it = struct_table_.find(target_t.name);
+        if (it == struct_table_.end()) {
+            emit_error(fa->location, "unknown struct '" + target_t.name + "'");
+            fa->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return fa->evaluated_type;
+        }
+        auto field_it = it->second.fields.find(fa->field_name);
+        if (field_it == it->second.fields.end()) {
+            emit_error(fa->location, "no field '" + fa->field_name + "' on type '" + target_t.name + "'");
+            fa->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return fa->evaluated_type;
+        }
+        fa->evaluated_type = field_it->second;
+        return fa->evaluated_type;
+    }
+
+    return Type{BaseTypeKind::Unit, "", false, false};
 }
 
 } // namespace oxide

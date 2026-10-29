@@ -178,6 +178,18 @@ void BorrowChecker::check_expression(Expression& expr) {
         check_block(*block);
         return;
     }
+
+    if (auto* s_init = dynamic_cast<StructInitExpr*>(&expr)) {
+        for (auto& f : s_init->fields) {
+            check_expression(*f.value);
+        }
+        return;
+    }
+
+    if (auto* fa = dynamic_cast<FieldAccessExpr*>(&expr)) {
+        check_expression(*fa->target);
+        return;
+    }
 }
 
 } // namespace oxide

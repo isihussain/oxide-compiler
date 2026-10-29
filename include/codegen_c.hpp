@@ -13,6 +13,7 @@ public:
 
 private:
     void emit_includes();
+    void emit_struct_declarations();
     void emit_forward_declarations();
     void emit_function(const Function& func);
     void emit_block(const BlockExpr& block, bool is_function_body);

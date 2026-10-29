@@ -11,12 +11,20 @@ enum class BaseTypeKind {
     Unit,
     I32,
     Bool,
+    Named,
 };
 
 struct Type {
     BaseTypeKind kind = BaseTypeKind::Unit;
+    std::string name = "";
     bool is_ref = false;
     bool is_mut_ref = false;
+
+    Type() = default;
+    Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false)
+        : kind(k), name(std::move(n)), is_ref(r), is_mut_ref(mr) {}
+    Type(BaseTypeKind k, bool r, bool mr)
+        : kind(k), name(""), is_ref(r), is_mut_ref(mr) {}
 
     bool operator==(const Type& other) const = default;
     std::string to_string() const;
@@ -132,6 +140,30 @@ struct ReturnExpr : public Expression {
     void dump(int indent = 0) const override;
 };
 
+struct StructFieldInit {
+    std::string field_name;
+    std::unique_ptr<Expression> value;
+    SourceLocation location;
+};
+
+struct StructInitExpr : public Expression {
+    std::string struct_name;
+    std::vector<StructFieldInit> fields;
+
+    StructInitExpr(std::string name, std::vector<StructFieldInit> flds, SourceLocation loc)
+        : struct_name(std::move(name)), fields(std::move(flds)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct FieldAccessExpr : public Expression {
+    std::unique_ptr<Expression> target;
+    std::string field_name;
+
+    FieldAccessExpr(std::unique_ptr<Expression> tgt, std::string field, SourceLocation loc)
+        : target(std::move(tgt)), field_name(std::move(field)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
 struct Statement : public ASTNode {
     virtual void dump(int indent = 0) const = 0;
 };
@@ -184,7 +216,24 @@ struct Function : public ASTNode {
     void dump(int indent = 0) const;
 };
 
+struct StructField {
+    std::string name;
+    Type type;
+    SourceLocation location;
+};
+
+struct StructDef : public ASTNode {
+    std::string name;
+    std::vector<StructField> fields;
+
+    StructDef(std::string name, std::vector<StructField> fields, SourceLocation loc)
+        : name(std::move(name)), fields(std::move(fields)) { location = loc; }
+
+    void dump(int indent = 0) const;
+};
+
 struct Program : public ASTNode {
+    std::vector<std::unique_ptr<StructDef>> structs;
     std::vector<std::unique_ptr<Function>> functions;
 
     void dump() const;

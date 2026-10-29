@@ -14,6 +14,13 @@ struct FunctionSignature {
     SourceLocation location;
 };
 
+struct StructSignature {
+    std::string name;
+    std::map<std::string, Type> fields;
+    std::vector<std::string> field_order;
+    SourceLocation location;
+};
+
 class TypeChecker {
 public:
     explicit TypeChecker(Program& program);
@@ -21,6 +28,7 @@ public:
     const std::vector<std::string>& errors() const { return errors_; }
 
 private:
+    void register_structs();
     void register_functions();
     void check_function(Function& func);
     void check_block(BlockExpr& block, const Type& expected_return_type, bool is_function_root);
@@ -35,6 +43,7 @@ private:
     void emit_error(SourceLocation loc, const std::string& message);
 
     Program& program_;
+    std::map<std::string, StructSignature> struct_table_;
     std::map<std::string, FunctionSignature> function_table_;
     std::vector<std::map<std::string, std::pair<Type, bool>>> scopes_; // name -> (Type, is_mut)
     std::vector<std::string> errors_;

@@ -23,6 +23,7 @@ private:
     const Token& consume(TokenType type, const std::string& error_message);
 
     std::unique_ptr<Function> parse_function();
+    std::unique_ptr<StructDef> parse_struct_definition();
     Parameter parse_parameter();
     Type parse_type();
 

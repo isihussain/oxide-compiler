@@ -19,6 +19,7 @@ enum class TokenType {
     KwLoop,
     KwWhile,
     KwReturn,
+    KwStruct,
     KwTrue,
     KwFalse,
 
@@ -38,6 +39,7 @@ enum class TokenType {
     Minus,         // -
     Star,          // *
     Slash,         // /
+    Dot,           // .
     Eq,            // =
     EqEq,          // ==
     NotEq,         // !=

@@ -19,6 +19,7 @@ def run():
         ("examples/01_simple_arithmetic.rs", 42),
         ("examples/02_control_flow.rs", 42),
         ("examples/03_mutability.rs", 10),
+        ("examples/04_structs.rs", 42),
     ]
 
     passed = 0
@@ -45,6 +46,9 @@ def run():
         ("tests/ui/fail_immut_assign.rs", "cannot assign twice to immutable variable"),
         ("tests/ui/fail_type_mismatch.rs", "mismatched types"),
         ("tests/ui/fail_uninit.rs", "use of possibly-uninitialized variable"),
+        ("tests/ui/fail_struct_unknown_field.rs", "has no field named"),
+        ("tests/ui/fail_struct_missing_field.rs", "missing field"),
+        ("tests/ui/fail_struct_invalid_field_access.rs", "no field"),
     ]
 
     for path_str, expected_err_sub in negative_tests:

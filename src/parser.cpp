@@ -60,11 +60,32 @@ std::unique_ptr<Program> Parser::parse_program() {
     while (!is_at_end()) {
         if (check(TokenType::KwFn)) {
             program->functions.push_back(parse_function());
+        } else if (check(TokenType::KwStruct)) {
+            program->structs.push_back(parse_struct_definition());
         } else {
             throw std::runtime_error("Unexpected token at top level: " + peek().to_string());
         }
     }
     return program;
+}
+
+std::unique_ptr<StructDef> Parser::parse_struct_definition() {
+    SourceLocation loc = consume(TokenType::KwStruct, "Expected 'struct'").location;
+    std::string name = consume(TokenType::Identifier, "Expected struct name").text;
+
+    consume(TokenType::LBrace, "Expected '{' after struct name");
+    std::vector<StructField> fields;
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        const Token& field_tok = consume(TokenType::Identifier, "Expected field name");
+        consume(TokenType::Colon, "Expected ':' after field name");
+        Type type = parse_type();
+        fields.push_back(StructField{field_tok.text, type, field_tok.location});
+        if (!match(TokenType::Comma)) {
+            break;
+        }
+    }
+    consume(TokenType::RBrace, "Expected '}' to close struct definition");
+    return std::make_unique<StructDef>(name, std::move(fields), loc);
 }
 
 std::unique_ptr<Function> Parser::parse_function() {
@@ -113,6 +134,9 @@ Type Parser::parse_type() {
     } else if (match(TokenType::LParen)) {
         consume(TokenType::RParen, "Expected ')' for unit type '()'");
         type.kind = BaseTypeKind::Unit;
+    } else if (match(TokenType::Identifier)) {
+        type.kind = BaseTypeKind::Named;
+        type.name = previous().text;
     } else {
         throw std::runtime_error("Expected type name at [" + std::to_string(peek().location.line) + ":" +
                                  std::to_string(peek().location.column) + "], found: " + peek().text);
@@ -279,7 +303,12 @@ std::unique_ptr<Expression> Parser::parse_unary() {
         return std::make_unique<UnaryExpr>(UnaryOp::Deref, std::move(operand), loc);
     }
 
-    return parse_primary();
+    auto expr = parse_primary();
+    while (match(TokenType::Dot)) {
+        const Token& field_tok = consume(TokenType::Identifier, "Expected field name after '.'");
+        expr = std::make_unique<FieldAccessExpr>(std::move(expr), field_tok.text, field_tok.location);
+    }
+    return expr;
 }
 
 std::unique_ptr<Expression> Parser::parse_primary() {
@@ -313,6 +342,24 @@ std::unique_ptr<Expression> Parser::parse_primary() {
             }
             consume(TokenType::RParen, "Expected ')' after call arguments");
             return std::make_unique<CallExpr>(name, std::move(args), loc);
+        }
+        // Struct literal: Name { field: value, ... }
+        if (check(TokenType::LBrace) && cursor_ + 2 < tokens_.size() &&
+            tokens_[cursor_ + 1].type == TokenType::Identifier &&
+            tokens_[cursor_ + 2].type == TokenType::Colon) {
+            advance(); // consume '{'
+            std::vector<StructFieldInit> inits;
+            while (!check(TokenType::RBrace) && !is_at_end()) {
+                const Token& f_tok = consume(TokenType::Identifier, "Expected field name in struct literal");
+                consume(TokenType::Colon, "Expected ':' after field name");
+                auto val = parse_expression();
+                inits.push_back(StructFieldInit{f_tok.text, std::move(val), f_tok.location});
+                if (!match(TokenType::Comma)) {
+                    break;
+                }
+            }
+            consume(TokenType::RBrace, "Expected '}' to close struct literal");
+            return std::make_unique<StructInitExpr>(name, std::move(inits), loc);
         }
         return std::make_unique<VariableExpr>(name, loc);
     }

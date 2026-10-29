@@ -24,6 +24,7 @@ std::string CCodeGenerator::map_type(const Type& type) {
         case BaseTypeKind::Unit: base = "void"; break;
         case BaseTypeKind::I32: base = "int32_t"; break;
         case BaseTypeKind::Bool: base = "bool"; break;
+        case BaseTypeKind::Named: base = type.name; break;
     }
     if (type.is_ref) {
         if (type.is_mut_ref) {
@@ -40,6 +41,7 @@ std::string CCodeGenerator::generate() {
     out_.clear();
 
     emit_includes();
+    emit_struct_declarations();
     emit_forward_declarations();
 
     for (const auto& fn : program_.functions) {
@@ -55,6 +57,19 @@ void CCodeGenerator::emit_includes() {
     line("#include <stdbool.h>");
     line("#include <stdio.h>");
     line();
+}
+
+void CCodeGenerator::emit_struct_declarations() {
+    for (const auto& s : program_.structs) {
+        line("typedef struct {");
+        indent_level_++;
+        for (const auto& f : s->fields) {
+            line(map_type(f.type) + " " + f.name + ";");
+        }
+        indent_level_--;
+        line("} " + s->name + ";");
+        line();
+    }
 }
 
 void CCodeGenerator::emit_forward_declarations() {
@@ -198,6 +213,18 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << " ";
             emit_expression(*ret->value);
         }
+    } else if (auto* s_init = dynamic_cast<const StructInitExpr*>(&expr)) {
+        out_ << "((" << s_init->struct_name << "){ ";
+        for (size_t i = 0; i < s_init->fields.size(); ++i) {
+            if (i > 0) out_ << ", ";
+            out_ << "." << s_init->fields[i].field_name << " = ";
+            emit_expression(*s_init->fields[i].value);
+        }
+        out_ << " })";
+    } else if (auto* fa = dynamic_cast<const FieldAccessExpr*>(&expr)) {
+        out_ << "(";
+        emit_expression(*fa->target);
+        out_ << "." << fa->field_name << ")";
     }
 }
 

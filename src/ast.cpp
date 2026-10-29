@@ -15,6 +15,7 @@ std::string Type::to_string() const {
         case BaseTypeKind::Unit: s += "()"; break;
         case BaseTypeKind::I32: s += "i32"; break;
         case BaseTypeKind::Bool: s += "bool"; break;
+        case BaseTypeKind::Named: s += name; break;
     }
     return s;
 }
@@ -110,6 +111,24 @@ void ReturnExpr::dump(int indent) const {
     if (value) value->dump(indent + 1);
 }
 
+void StructInitExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "StructInit(" << struct_name << ") : " << evaluated_type.to_string() << " {\n";
+    for (const auto& field : fields) {
+        print_indent(indent + 1);
+        std::cout << field.field_name << ":\n";
+        if (field.value) field.value->dump(indent + 2);
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
+void FieldAccessExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "FieldAccess(." << field_name << ") : " << evaluated_type.to_string() << "\n";
+    if (target) target->dump(indent + 1);
+}
+
 void LetStmt::dump(int indent) const {
     print_indent(indent);
     std::cout << "LetStmt(" << (is_mutable ? "mut " : "") << var_name << " : "
@@ -140,6 +159,17 @@ void BlockExpr::dump(int indent) const {
     std::cout << "}\n";
 }
 
+void StructDef::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "struct " << name << " {\n";
+    for (const auto& f : fields) {
+        print_indent(indent + 1);
+        std::cout << f.name << ": " << f.type.to_string() << ",\n";
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
 void Function::dump(int indent) const {
     print_indent(indent);
     std::cout << "Function " << name << "(";
@@ -156,6 +186,9 @@ void Function::dump(int indent) const {
 
 void Program::dump() const {
     std::cout << "Program {\n";
+    for (const auto& s : structs) {
+        s->dump(1);
+    }
     for (const auto& fn : functions) {
         fn->dump(1);
     }
