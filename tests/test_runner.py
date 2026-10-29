@@ -33,6 +33,7 @@ def run():
         ("examples/15_strings_and_macros.rs", 42, []),
         ("examples/16_for_in_loops.rs", 42, []),
         ("examples/17_standard_core_option_result.rs", 42, []),
+        ("examples/18_constant_folding.rs", 42, []),
     ]
 
     passed = 0
@@ -96,6 +97,7 @@ def run():
         ("tests/ui/fail_option_unwrap_type.rs", "expected '&str', found 'i32'", []),
         ("tests/ui/fail_aerospace_unbounded_loop.rs", "unbounded loop detected: NASA/JPL Rule 1", ["--profile=aerospace"]),
         ("tests/ui/fail_aerospace_heap_allocation.rs", "dynamic memory allocation 'malloc' is banned", ["--profile=aerospace"]),
+        ("tests/ui/fail_dead_code_type_still_checked.rs", "mismatched types in 'let': expected 'i32', found 'bool'", []),
     ]
 
     for item in negative_tests:
@@ -109,7 +111,6 @@ def run():
             print(f"[PASS] {src.name} (correctly rejected)")
             passed += 1
         else:
-            print(f"[FAIL] {src.name}: expected error containing '{expected_err_sub}', output:\n{res.stderr}")
             print(f"[FAIL] {src.name}: expected error containing '{expected_err_sub}', output:\n{res.stderr}")
 
     print("=" * 50)

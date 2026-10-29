@@ -280,6 +280,8 @@ bool TypeChecker::check() {
 }
 
 void TypeChecker::check_function(Function& func) {
+    auto prev_return = current_function_return_type_;
+    current_function_return_type_ = func.return_type;
     enter_scope();
     for (const auto& p : func.parameters) {
         declare_variable(p.name, p.type, p.is_mut, p.location);
@@ -287,6 +289,7 @@ void TypeChecker::check_function(Function& func) {
 
     check_block(*func.body, func.return_type, true);
     exit_scope();
+    current_function_return_type_ = prev_return;
 }
 
 void TypeChecker::check_block(BlockExpr& block, const Type& expected_return_type, bool is_function_root) {
@@ -298,6 +301,18 @@ void TypeChecker::check_block(BlockExpr& block, const Type& expected_return_type
     Type block_type{BaseTypeKind::Unit, false, false};
     if (block.trailing_expr) {
         block_type = check_expression(*block.trailing_expr);
+    } else {
+        // If block has no trailing expression, check if any statement is a return matching expected_return_type
+        for (const auto& stmt : block.statements) {
+            if (auto* es = dynamic_cast<ExprStmt*>(stmt.get())) {
+                if (auto* ret = dynamic_cast<ReturnExpr*>(es->expr.get())) {
+                    if (ret->evaluated_type == expected_return_type) {
+                        block_type = expected_return_type;
+                        break;
+                    }
+                }
+            }
+        }
     }
     block.evaluated_type = block_type;
 
@@ -664,6 +679,13 @@ Type TypeChecker::check_expression(Expression& expr) {
             ret->evaluated_type = check_expression(*ret->value);
         } else {
             ret->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+        }
+        if (current_function_return_type_.has_value()) {
+            if (!(ret->evaluated_type == *current_function_return_type_)) {
+                emit_error(ret->location, "mismatched return type: expected '" +
+                           current_function_return_type_->to_string() + "', found '" +
+                           ret->evaluated_type.to_string() + "'");
+            }
         }
         return ret->evaluated_type;
     }

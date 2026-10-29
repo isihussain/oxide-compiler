@@ -94,6 +94,7 @@ private:
     std::map<std::string, EnumSignature> enum_table_;
     std::map<std::string, FunctionSignature> function_table_;
     std::vector<std::map<std::string, std::pair<Type, bool>>> scopes_; // name -> (Type, is_mut)
+    std::optional<Type> current_function_return_type_;
     std::vector<std::string> errors_;
 };
 

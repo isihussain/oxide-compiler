@@ -281,8 +281,18 @@ void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body) {
         emit_expression(*block.trailing_expr);
         out_ << ";\n";
     } else if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
-        indent();
-        out_ << "return 0;\n";
+        bool ends_with_return = false;
+        if (!block.statements.empty()) {
+            if (auto* es = dynamic_cast<const ExprStmt*>(block.statements.back().get())) {
+                if (dynamic_cast<const ReturnExpr*>(es->expr.get())) {
+                    ends_with_return = true;
+                }
+            }
+        }
+        if (!ends_with_return) {
+            indent();
+            out_ << "return 0;\n";
+        }
     }
 
     indent_level_--;

@@ -4,6 +4,7 @@
 #include "codegen_c.hpp"
 #include "lexer.hpp"
 #include "monomorphize.hpp"
+#include "optimizer.hpp"
 #include "parser.hpp"
 #include "typeck.hpp"
 
@@ -137,6 +138,10 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+
+    // 7. AST Optimization (Constant Folding & Dead Code Elimination)
+    oxide::Optimizer opt(*program);
+    opt.run();
 
     if (emit_ast) {
         program->dump();

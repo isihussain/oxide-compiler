@@ -27,6 +27,9 @@ Rust Source (.rs)
  [ Borrow Checker ] ───► Ownership & Mutability Validation
       │
       ▼
+ [ Optimizer ] ────────► Constant Folding & Dead Code Elimination
+      │
+      ▼
  [ C99 Codegen ] ──────► Emitted C99 Source / Native Executable
 ```
 
@@ -45,9 +48,12 @@ Rust Source (.rs)
   - Simultaneous mutable and immutable aliasing is rejected.
   - Use of uninitialized variables is rejected.
 * **Aerospace Verifier (`include/aerospace.hpp`, `src/aerospace.cpp`)**: Enforces safety-critical constraints under `--profile=aerospace`:
-  - Rejects direct and indirect recursion via call-graph cycle analysis (NASA/JPL Flight Software Rule 3).
-  - Emits checked arithmetic traps (`__builtin_add_overflow`, etc.) to prevent unhandled integer overflow failures (Ariane 5 mitigation).
-* **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references) into equivalent C constructs.
+  - NASA/JPL Flight Software Rule 1: Bounded loop checks (bans unbounded `while true` loops).
+  - NASA/JPL Flight Software Rule 2: Complete ban on dynamic heap memory allocation (`malloc`, `calloc`, `realloc`, `free`).
+  - NASA/JPL Flight Software Rule 3: Rejects direct and indirect recursion via call-graph cycle analysis.
+  - Checked arithmetic traps (`__builtin_add_overflow`, etc.) and array bounds traps to prevent unhandled integer overflow failures (Ariane 5 mitigation) and out-of-bounds memory corruption.
+* **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations and dead code elimination following early returns.
+* **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
 ---
 
@@ -125,6 +131,11 @@ Running Oxide Conformance Test Suite...
 [PASS] 11_generics_monomorphization.rs (exit code: 42)
 [PASS] 12_traits_and_impl.rs (exit code: 42)
 [PASS] 13_non_lexical_lifetimes.rs (exit code: 42)
+[PASS] 14_fixed_size_arrays.rs (exit code: 42)
+[PASS] 15_strings_and_macros.rs (exit code: 42)
+[PASS] 16_for_in_loops.rs (exit code: 42)
+[PASS] 17_standard_core_option_result.rs (exit code: 42)
+[PASS] 18_constant_folding.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -152,8 +163,19 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_nll_assign_while_borrowed.rs (correctly rejected)
 [PASS] fail_nll_double_mut_borrow.rs (correctly rejected)
 [PASS] fail_nll_while_loop_borrow.rs (correctly rejected)
+[PASS] fail_array_type_mismatch.rs (correctly rejected)
+[PASS] fail_array_bounds_check.rs (correctly rejected)
+[PASS] fail_array_assign_immutable.rs (correctly rejected)
+[PASS] fail_assert_non_bool.rs (correctly rejected)
+[PASS] fail_string_type_mismatch.rs (correctly rejected)
+[PASS] fail_for_assign_loop_var.rs (correctly rejected)
+[PASS] fail_range_non_i32.rs (correctly rejected)
+[PASS] fail_option_unwrap_type.rs (correctly rejected)
+[PASS] fail_aerospace_unbounded_loop.rs (correctly rejected)
+[PASS] fail_aerospace_heap_allocation.rs (correctly rejected)
+[PASS] fail_dead_code_type_still_checked.rs (correctly rejected)
 ==================================================
-Results: 40/40 tests passed.
+Results: 56/56 tests passed.
 ```
 
 ---
