@@ -31,6 +31,7 @@ def run():
         ("examples/13_non_lexical_lifetimes.rs", 42, []),
         ("examples/14_fixed_size_arrays.rs", 42, []),
         ("examples/15_strings_and_macros.rs", 42, []),
+        ("examples/16_for_in_loops.rs", 42, []),
     ]
 
     passed = 0
@@ -89,6 +90,8 @@ def run():
         ("tests/ui/fail_array_assign_immutable.rs", "cannot assign to index of immutable variable", []),
         ("tests/ui/fail_assert_non_bool.rs", "expected 'bool', found 'i32'", []),
         ("tests/ui/fail_string_type_mismatch.rs", "expected 'i32', found '&str'", []),
+        ("tests/ui/fail_for_assign_loop_var.rs", "cannot assign twice to immutable variable", []),
+        ("tests/ui/fail_range_non_i32.rs", "range bounds must be 'i32'", []),
     ]
 
     for item in negative_tests:
