@@ -1,4 +1,5 @@
 #include "typeck.hpp"
+#include <optional>
 #include <set>
 #include <sstream>
 

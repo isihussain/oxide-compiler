@@ -292,7 +292,7 @@ std::unique_ptr<Expression> Parser::parse_comparison() {
            match(TokenType::Gt) || match(TokenType::GtEq)) {
         TokenType op_type = previous().type;
         SourceLocation loc = previous().location;
-        BinaryOp op;
+        BinaryOp op = BinaryOp::Less;
         switch (op_type) {
             case TokenType::Lt: op = BinaryOp::Less; break;
             case TokenType::LtEq: op = BinaryOp::LessEqual; break;
