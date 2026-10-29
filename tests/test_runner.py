@@ -94,6 +94,8 @@ def run():
         ("tests/ui/fail_for_assign_loop_var.rs", "cannot assign twice to immutable variable", []),
         ("tests/ui/fail_range_non_i32.rs", "range bounds must be 'i32'", []),
         ("tests/ui/fail_option_unwrap_type.rs", "expected '&str', found 'i32'", []),
+        ("tests/ui/fail_aerospace_unbounded_loop.rs", "unbounded loop detected: NASA/JPL Rule 1", ["--profile=aerospace"]),
+        ("tests/ui/fail_aerospace_heap_allocation.rs", "dynamic memory allocation 'malloc' is banned", ["--profile=aerospace"]),
     ]
 
     for item in negative_tests:

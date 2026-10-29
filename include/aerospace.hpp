@@ -19,6 +19,8 @@ private:
     void collect_calls_from_block(const std::string& caller, const BlockExpr& block);
     void collect_calls_from_expr(const std::string& caller, const Expression& expr);
     void check_recursion();
+    void check_loop_bounds();
+    void check_memory_allocation();
 
     void emit_error(SourceLocation loc, const std::string& message);
 

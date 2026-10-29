@@ -213,9 +213,168 @@ void AerospaceVerifier::check_recursion() {
     }
 }
 
+static void scan_ast_rules(const Expression& expr,
+                           const std::function<void(SourceLocation, const std::string&)>& emit_err) {
+    if (auto* while_expr = dynamic_cast<const WhileExpr*>(&expr)) {
+        if (auto* b = dynamic_cast<const BoolLiteralExpr*>(while_expr->condition.get())) {
+            if (b->value) {
+                emit_err(while_expr->location,
+                         "unbounded loop detected: NASA/JPL Rule 1 requires statically determinable loop bounds (infinite 'while true' loop is banned)");
+            }
+        }
+        scan_ast_rules(*while_expr->condition, emit_err);
+        if (while_expr->body) {
+            for (const auto& s : while_expr->body->statements) {
+                if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+                    if (let->initializer) scan_ast_rules(*let->initializer, emit_err);
+                } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+                    if (es->expr) scan_ast_rules(*es->expr, emit_err);
+                }
+            }
+            if (while_expr->body->trailing_expr) scan_ast_rules(*while_expr->body->trailing_expr, emit_err);
+        }
+        return;
+    }
+
+    if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
+        if (call->callee == "malloc" || call->callee == "calloc" ||
+            call->callee == "realloc" || call->callee == "free") {
+            emit_err(call->location,
+                     "dynamic memory allocation '" + call->callee + "' is banned under NASA/JPL Rule 2 in safety-critical profile");
+        }
+        for (const auto& a : call->arguments) scan_ast_rules(*a, emit_err);
+        return;
+    }
+
+    if (auto* if_expr = dynamic_cast<const IfExpr*>(&expr)) {
+        scan_ast_rules(*if_expr->condition, emit_err);
+        if (if_expr->then_branch) {
+            for (const auto& s : if_expr->then_branch->statements) {
+                if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+                    if (let->initializer) scan_ast_rules(*let->initializer, emit_err);
+                } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+                    if (es->expr) scan_ast_rules(*es->expr, emit_err);
+                }
+            }
+            if (if_expr->then_branch->trailing_expr) scan_ast_rules(*if_expr->then_branch->trailing_expr, emit_err);
+        }
+        if (if_expr->else_branch) {
+            for (const auto& s : if_expr->else_branch->statements) {
+                if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+                    if (let->initializer) scan_ast_rules(*let->initializer, emit_err);
+                } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+                    if (es->expr) scan_ast_rules(*es->expr, emit_err);
+                }
+            }
+            if (if_expr->else_branch->trailing_expr) scan_ast_rules(*if_expr->else_branch->trailing_expr, emit_err);
+        }
+        return;
+    }
+
+    if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        scan_ast_rules(*for_expr->iterable, emit_err);
+        if (for_expr->body) {
+            for (const auto& s : for_expr->body->statements) {
+                if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+                    if (let->initializer) scan_ast_rules(*let->initializer, emit_err);
+                } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+                    if (es->expr) scan_ast_rules(*es->expr, emit_err);
+                }
+            }
+            if (for_expr->body->trailing_expr) scan_ast_rules(*for_expr->body->trailing_expr, emit_err);
+        }
+        return;
+    }
+
+    if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
+        scan_ast_rules(*bin->left, emit_err);
+        scan_ast_rules(*bin->right, emit_err);
+        return;
+    }
+
+    if (auto* un = dynamic_cast<const UnaryExpr*>(&expr)) {
+        scan_ast_rules(*un->operand, emit_err);
+        return;
+    }
+
+    if (auto* assign = dynamic_cast<const AssignExpr*>(&expr)) {
+        scan_ast_rules(*assign->target, emit_err);
+        scan_ast_rules(*assign->value, emit_err);
+        return;
+    }
+
+    if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        scan_ast_rules(*mc->receiver, emit_err);
+        for (const auto& a : mc->arguments) scan_ast_rules(*a, emit_err);
+        return;
+    }
+
+    if (auto* arr = dynamic_cast<const ArrayLiteralExpr*>(&expr)) {
+        for (const auto& el : arr->elements) scan_ast_rules(*el, emit_err);
+        return;
+    }
+
+    if (auto* rep = dynamic_cast<const ArrayRepeatExpr*>(&expr)) {
+        scan_ast_rules(*rep->value, emit_err);
+        return;
+    }
+
+    if (auto* idx = dynamic_cast<const IndexExpr*>(&expr)) {
+        scan_ast_rules(*idx->target, emit_err);
+        scan_ast_rules(*idx->index, emit_err);
+        return;
+    }
+}
+
+void AerospaceVerifier::check_loop_bounds() {
+    auto emit_err = [this](SourceLocation loc, const std::string& msg) {
+        emit_error(loc, msg);
+    };
+
+    for (const auto& fn : program_.functions) {
+        if (fn->body) {
+            for (const auto& s : fn->body->statements) {
+                if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+                    if (let->initializer) scan_ast_rules(*let->initializer, emit_err);
+                } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+                    if (es->expr) scan_ast_rules(*es->expr, emit_err);
+                }
+            }
+            if (fn->body->trailing_expr) scan_ast_rules(*fn->body->trailing_expr, emit_err);
+        }
+    }
+
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            if (fn->body) {
+                for (const auto& s : fn->body->statements) {
+                    if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+                        if (let->initializer) scan_ast_rules(*let->initializer, emit_err);
+                    } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+                        if (es->expr) scan_ast_rules(*es->expr, emit_err);
+                    }
+                }
+                if (fn->body->trailing_expr) scan_ast_rules(*fn->body->trailing_expr, emit_err);
+            }
+        }
+    }
+}
+
+void AerospaceVerifier::check_memory_allocation() {
+    for (const auto& ext : program_.extern_blocks) {
+        for (const auto& f : ext->declarations) {
+            if (f.name == "malloc" || f.name == "calloc" || f.name == "realloc" || f.name == "free") {
+                emit_error(f.location, "dynamic memory allocation '" + f.name + "' is banned under NASA/JPL Rule 2 in safety-critical profile");
+            }
+        }
+    }
+}
+
 bool AerospaceVerifier::verify() {
     build_call_graph();
     check_recursion();
+    check_loop_bounds();
+    check_memory_allocation();
     return errors_.empty();
 }
 
