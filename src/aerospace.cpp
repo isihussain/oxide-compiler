@@ -1,4 +1,5 @@
 #include "aerospace.hpp"
+#include <algorithm>
 #include <sstream>
 
 namespace oxide {
