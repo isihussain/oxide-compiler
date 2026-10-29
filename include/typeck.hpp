@@ -10,6 +10,7 @@ namespace oxide {
 
 struct FunctionSignature {
     std::string name;
+    std::vector<std::string> type_params;
     std::vector<Type> param_types;
     Type return_type;
     SourceLocation location;
@@ -17,6 +18,7 @@ struct FunctionSignature {
 
 struct StructSignature {
     std::string name;
+    std::vector<std::string> type_params;
     std::map<std::string, Type> fields;
     std::vector<std::string> field_order;
     SourceLocation location;
@@ -49,6 +51,9 @@ private:
     void check_block(BlockExpr& block, const Type& expected_return_type, bool is_function_root);
     void check_statement(Statement& stmt);
     Type check_expression(Expression& expr);
+
+    Type substitute_type(const Type& type, const std::map<std::string, Type>& subst);
+    bool unify_type(const Type& pattern, const Type& concrete, std::map<std::string, Type>& subst);
 
     void enter_scope();
     void exit_scope();

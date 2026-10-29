@@ -13,22 +13,25 @@ enum class BaseTypeKind {
     I32,
     Bool,
     Named,
+    GenericParam,
 };
 
 struct Type {
     BaseTypeKind kind = BaseTypeKind::Unit;
     std::string name = "";
+    std::vector<Type> type_args;
     bool is_ref = false;
     bool is_mut_ref = false;
 
     Type() = default;
-    Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false)
-        : kind(k), name(std::move(n)), is_ref(r), is_mut_ref(mr) {}
+    Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false, std::vector<Type> args = {})
+        : kind(k), name(std::move(n)), type_args(std::move(args)), is_ref(r), is_mut_ref(mr) {}
     Type(BaseTypeKind k, bool r, bool mr)
         : kind(k), name(""), is_ref(r), is_mut_ref(mr) {}
 
     bool operator==(const Type& other) const = default;
     std::string to_string() const;
+    std::string mangled_name() const;
 };
 
 // Forward declarations
@@ -115,10 +118,12 @@ struct AssignExpr : public Expression {
 
 struct CallExpr : public Expression {
     std::string callee;
+    std::vector<Type> type_args;
     std::vector<std::unique_ptr<Expression>> arguments;
 
-    CallExpr(std::string callee, std::vector<std::unique_ptr<Expression>> args, SourceLocation loc)
-        : callee(std::move(callee)), arguments(std::move(args)) { location = loc; }
+    CallExpr(std::string callee, std::vector<std::unique_ptr<Expression>> args, SourceLocation loc,
+             std::vector<Type> t_args = {})
+        : callee(std::move(callee)), type_args(std::move(t_args)), arguments(std::move(args)) { location = loc; }
     void dump(int indent = 0) const override;
 };
 
@@ -158,10 +163,12 @@ struct StructFieldInit {
 
 struct StructInitExpr : public Expression {
     std::string struct_name;
+    std::vector<Type> type_args;
     std::vector<StructFieldInit> fields;
 
-    StructInitExpr(std::string name, std::vector<StructFieldInit> flds, SourceLocation loc)
-        : struct_name(std::move(name)), fields(std::move(flds)) { location = loc; }
+    StructInitExpr(std::string name, std::vector<StructFieldInit> flds, SourceLocation loc,
+                   std::vector<Type> t_args = {})
+        : struct_name(std::move(name)), type_args(std::move(t_args)), fields(std::move(flds)) { location = loc; }
     void dump(int indent = 0) const override;
 };
 
@@ -253,15 +260,19 @@ struct Parameter {
 struct Function : public ASTNode {
     std::string name;
     std::string abi = ""; // e.g. "C" or "" (Rust)
+    std::vector<std::string> type_params;
     std::vector<Parameter> parameters;
     Type return_type;
     std::unique_ptr<BlockExpr> body;
 
     Function(std::string name, std::vector<Parameter> params, Type ret_type,
-             std::unique_ptr<BlockExpr> body, SourceLocation loc, std::string abi = "")
-        : name(std::move(name)), abi(std::move(abi)), parameters(std::move(params)), return_type(ret_type),
+             std::unique_ptr<BlockExpr> body, SourceLocation loc, std::string abi = "",
+             std::vector<std::string> t_params = {})
+        : name(std::move(name)), abi(std::move(abi)), type_params(std::move(t_params)),
+          parameters(std::move(params)), return_type(ret_type),
           body(std::move(body)) { location = loc; }
 
+    bool is_generic() const { return !type_params.empty(); }
     void dump(int indent = 0) const;
 };
 
@@ -290,11 +301,14 @@ struct StructField {
 
 struct StructDef : public ASTNode {
     std::string name;
+    std::vector<std::string> type_params;
     std::vector<StructField> fields;
 
-    StructDef(std::string name, std::vector<StructField> fields, SourceLocation loc)
-        : name(std::move(name)), fields(std::move(fields)) { location = loc; }
+    StructDef(std::string name, std::vector<StructField> fields, SourceLocation loc,
+              std::vector<std::string> t_params = {})
+        : name(std::move(name)), type_params(std::move(t_params)), fields(std::move(fields)) { location = loc; }
 
+    bool is_generic() const { return !type_params.empty(); }
     void dump(int indent = 0) const;
 };
 

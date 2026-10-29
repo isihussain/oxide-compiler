@@ -26,6 +26,7 @@ std::string CCodeGenerator::map_type(const Type& type) {
         case BaseTypeKind::I32: base = "int32_t"; break;
         case BaseTypeKind::Bool: base = "bool"; break;
         case BaseTypeKind::Named: base = type.name; break;
+        case BaseTypeKind::GenericParam: base = type.name; break;
     }
     if (type.is_ref) {
         if (type.is_mut_ref) {

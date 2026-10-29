@@ -9,6 +9,7 @@ SRCS = $(SRC_DIR)/lexer.cpp \
        $(SRC_DIR)/ast.cpp \
        $(SRC_DIR)/parser.cpp \
        $(SRC_DIR)/typeck.cpp \
+       $(SRC_DIR)/monomorphize.cpp \
        $(SRC_DIR)/borrowck.cpp \
        $(SRC_DIR)/codegen_c.cpp \
        $(SRC_DIR)/aerospace.cpp \

@@ -3,6 +3,7 @@
 #include "borrowck.hpp"
 #include "codegen_c.hpp"
 #include "lexer.hpp"
+#include "monomorphize.hpp"
 #include "parser.hpp"
 #include "typeck.hpp"
 
@@ -113,7 +114,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // 4. Borrow Checking
+    // 4. Monomorphization Pass (compile-time generic specialization)
+    oxide::Monomorphizer mono(*program);
+    mono.run();
+
+    // 5. Borrow Checking
     oxide::BorrowChecker borrowck(*program);
     if (!borrowck.check()) {
         for (const auto& err : borrowck.errors()) {
@@ -122,7 +127,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // 5. Aerospace Safety-Critical Verification (NASA/JPL Rule 3: bounded recursion)
+    // 6. Aerospace Safety-Critical Verification (NASA/JPL Rule 3: bounded recursion)
     if (aerospace_profile) {
         oxide::AerospaceVerifier aero(*program);
         if (!aero.verify()) {

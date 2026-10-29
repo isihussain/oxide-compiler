@@ -15,7 +15,37 @@ std::string Type::to_string() const {
         case BaseTypeKind::Unit: s += "()"; break;
         case BaseTypeKind::I32: s += "i32"; break;
         case BaseTypeKind::Bool: s += "bool"; break;
-        case BaseTypeKind::Named: s += name; break;
+        case BaseTypeKind::Named: {
+            s += name;
+            if (!type_args.empty()) {
+                s += "<";
+                for (size_t i = 0; i < type_args.size(); ++i) {
+                    if (i > 0) s += ", ";
+                    s += type_args[i].to_string();
+                }
+                s += ">";
+            }
+            break;
+        }
+        case BaseTypeKind::GenericParam: s += name; break;
+    }
+    return s;
+}
+
+std::string Type::mangled_name() const {
+    std::string s;
+    switch (kind) {
+        case BaseTypeKind::Unit: s = "unit"; break;
+        case BaseTypeKind::I32: s = "i32"; break;
+        case BaseTypeKind::Bool: s = "bool"; break;
+        case BaseTypeKind::Named: {
+            s = name;
+            for (const auto& arg : type_args) {
+                s += "_" + arg.mangled_name();
+            }
+            break;
+        }
+        case BaseTypeKind::GenericParam: s = name; break;
     }
     return s;
 }

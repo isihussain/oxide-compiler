@@ -26,6 +26,7 @@ def run():
         ("examples/08_extern_c_abi.rs", 42, []),
         ("examples/09_aerospace_profile.rs", 42, ["--profile=aerospace"]),
         ("examples/10_tagged_union_enums.rs", 42, []),
+        ("examples/11_generics_monomorphization.rs", 42, []),
     ]
 
     passed = 0
@@ -68,6 +69,8 @@ def run():
         ("tests/ui/fail_match_non_exhaustive.rs", "non-exhaustive patterns: variant 'Blue' not covered", []),
         ("tests/ui/fail_match_arm_type_mismatch.rs", "match arms have incompatible types", []),
         ("tests/ui/fail_enum_payload_mismatch.rs", "mismatched payload type for variant", []),
+        ("tests/ui/fail_generic_type_mismatch.rs", "mismatched type in argument 2", []),
+        ("tests/ui/fail_generic_struct_field_mismatch.rs", "mismatched type for field 'second'", []),
     ]
 
     for item in negative_tests:

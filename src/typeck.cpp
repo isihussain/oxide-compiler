@@ -51,6 +51,7 @@ void TypeChecker::register_structs() {
         }
         StructSignature sig;
         sig.name = s->name;
+        sig.type_params = s->type_params;
         sig.location = s->location;
         for (const auto& f : s->fields) {
             if (sig.fields.find(f.name) != sig.fields.end()) {
@@ -93,7 +94,7 @@ void TypeChecker::register_functions() {
             for (const auto& p : decl.parameters) {
                 params.push_back(p.type);
             }
-            function_table_[decl.name] = FunctionSignature{decl.name, params, decl.return_type, decl.location};
+            function_table_[decl.name] = FunctionSignature{decl.name, {}, params, decl.return_type, decl.location};
         }
     }
 
@@ -106,8 +107,51 @@ void TypeChecker::register_functions() {
         for (const auto& p : fn->parameters) {
             params.push_back(p.type);
         }
-        function_table_[fn->name] = FunctionSignature{fn->name, params, fn->return_type, fn->location};
+        function_table_[fn->name] = FunctionSignature{fn->name, fn->type_params, params, fn->return_type, fn->location};
     }
+}
+
+Type TypeChecker::substitute_type(const Type& type, const std::map<std::string, Type>& subst) {
+    Type res = type;
+    if (res.kind == BaseTypeKind::GenericParam) {
+        auto it = subst.find(res.name);
+        if (it != subst.end()) {
+            Type replaced = it->second;
+            replaced.is_ref = res.is_ref || replaced.is_ref;
+            replaced.is_mut_ref = res.is_mut_ref || replaced.is_mut_ref;
+            return replaced;
+        }
+    } else if (res.kind == BaseTypeKind::Named) {
+        for (auto& arg : res.type_args) {
+            arg = substitute_type(arg, subst);
+        }
+    }
+    return res;
+}
+
+bool TypeChecker::unify_type(const Type& pattern, const Type& concrete, std::map<std::string, Type>& subst) {
+    if (pattern.kind == BaseTypeKind::GenericParam) {
+        auto it = subst.find(pattern.name);
+        if (it != subst.end()) {
+            return it->second == concrete;
+        }
+        subst[pattern.name] = concrete;
+        return true;
+    }
+    if (pattern.kind != concrete.kind) {
+        return false;
+    }
+    if (pattern.kind == BaseTypeKind::Named) {
+        if (pattern.name != concrete.name) return false;
+        if (pattern.type_args.size() != concrete.type_args.size()) return false;
+        for (size_t i = 0; i < pattern.type_args.size(); ++i) {
+            if (!unify_type(pattern.type_args[i], concrete.type_args[i], subst)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return pattern.kind == concrete.kind;
 }
 
 bool TypeChecker::check() {
@@ -304,6 +348,55 @@ Type TypeChecker::check_expression(Expression& expr) {
             emit_error(call->location, "function '" + call->callee + "' takes " +
                        std::to_string(sig.param_types.size()) + " arguments but " +
                        std::to_string(call->arguments.size()) + " were supplied");
+            call->evaluated_type = sig.return_type;
+            return call->evaluated_type;
+        }
+
+        std::map<std::string, Type> subst;
+        if (!sig.type_params.empty()) {
+            if (!call->type_args.empty()) {
+                if (call->type_args.size() != sig.type_params.size()) {
+                    emit_error(call->location, "function '" + call->callee + "' takes " +
+                               std::to_string(sig.type_params.size()) + " type arguments but " +
+                               std::to_string(call->type_args.size()) + " were supplied");
+                } else {
+                    for (size_t i = 0; i < sig.type_params.size(); ++i) {
+                        subst[sig.type_params[i]] = call->type_args[i];
+                    }
+                }
+            }
+
+            // Type check arguments and infer missing type parameters
+            for (size_t i = 0; i < call->arguments.size(); ++i) {
+                Type arg_t = check_expression(*call->arguments[i]);
+                unify_type(sig.param_types[i], arg_t, subst);
+            }
+
+            // Fill in call->type_args if it was inferred
+            if (call->type_args.empty()) {
+                for (const auto& tp : sig.type_params) {
+                    auto it = subst.find(tp);
+                    if (it != subst.end()) {
+                        call->type_args.push_back(it->second);
+                    } else {
+                        emit_error(call->location, "cannot infer type argument for type parameter '" + tp +
+                                   "' in call to '" + call->callee + "'");
+                    }
+                }
+            }
+
+            // Check argument types against substituted parameter types
+            for (size_t i = 0; i < call->arguments.size(); ++i) {
+                Type expected_t = substitute_type(sig.param_types[i], subst);
+                Type arg_t = call->arguments[i]->evaluated_type;
+                if (!(arg_t == expected_t)) {
+                    emit_error(call->arguments[i]->location, "mismatched type in argument " +
+                               std::to_string(i + 1) + ": expected '" + expected_t.to_string() +
+                               "', found '" + arg_t.to_string() + "'");
+                }
+            }
+            call->evaluated_type = substitute_type(sig.return_type, subst);
+            return call->evaluated_type;
         } else {
             for (size_t i = 0; i < call->arguments.size(); ++i) {
                 Type arg_t = check_expression(*call->arguments[i]);
@@ -313,9 +406,9 @@ Type TypeChecker::check_expression(Expression& expr) {
                                "', found '" + arg_t.to_string() + "'");
                 }
             }
+            call->evaluated_type = sig.return_type;
+            return call->evaluated_type;
         }
-        call->evaluated_type = sig.return_type;
-        return call->evaluated_type;
     }
 
     if (auto* if_expr = dynamic_cast<IfExpr*>(&expr)) {
@@ -375,6 +468,21 @@ Type TypeChecker::check_expression(Expression& expr) {
             return s_init->evaluated_type;
         }
         const auto& sig = it->second;
+        std::map<std::string, Type> subst;
+        if (!sig.type_params.empty()) {
+            if (!s_init->type_args.empty()) {
+                if (s_init->type_args.size() != sig.type_params.size()) {
+                    emit_error(s_init->location, "struct '" + s_init->struct_name + "' takes " +
+                               std::to_string(sig.type_params.size()) + " type arguments but " +
+                               std::to_string(s_init->type_args.size()) + " were supplied");
+                } else {
+                    for (size_t i = 0; i < sig.type_params.size(); ++i) {
+                        subst[sig.type_params[i]] = s_init->type_args[i];
+                    }
+                }
+            }
+        }
+
         std::set<std::string> provided_fields;
         for (auto& f : s_init->fields) {
             if (provided_fields.count(f.field_name)) {
@@ -386,18 +494,43 @@ Type TypeChecker::check_expression(Expression& expr) {
                 emit_error(f.location, "struct '" + s_init->struct_name + "' has no field named '" + f.field_name + "'");
             } else {
                 Type val_t = check_expression(*f.value);
-                if (!(val_t == field_it->second)) {
-                    emit_error(f.location, "mismatched type for field '" + f.field_name + "': expected '" +
-                               field_it->second.to_string() + "', found '" + val_t.to_string() + "'");
+                if (!sig.type_params.empty()) {
+                    unify_type(field_it->second, val_t, subst);
                 }
             }
         }
+
+        if (!sig.type_params.empty() && s_init->type_args.empty()) {
+            for (const auto& tp : sig.type_params) {
+                auto sit = subst.find(tp);
+                if (sit != subst.end()) {
+                    s_init->type_args.push_back(sit->second);
+                } else {
+                    emit_error(s_init->location, "cannot infer type argument for type parameter '" + tp +
+                               "' in struct initializer of '" + s_init->struct_name + "'");
+                }
+            }
+        }
+
+        // Validate field types against substituted expected types
+        for (auto& f : s_init->fields) {
+            auto field_it = sig.fields.find(f.field_name);
+            if (field_it != sig.fields.end()) {
+                Type expected_t = substitute_type(field_it->second, subst);
+                Type val_t = f.value->evaluated_type;
+                if (!(val_t == expected_t)) {
+                    emit_error(f.location, "mismatched type for field '" + f.field_name + "': expected '" +
+                               expected_t.to_string() + "', found '" + val_t.to_string() + "'");
+                }
+            }
+        }
+
         for (const auto& expected_field : sig.field_order) {
             if (!provided_fields.count(expected_field)) {
                 emit_error(s_init->location, "missing field '" + expected_field + "' in initializer of '" + s_init->struct_name + "'");
             }
         }
-        s_init->evaluated_type = Type{BaseTypeKind::Named, s_init->struct_name, false, false};
+        s_init->evaluated_type = Type{BaseTypeKind::Named, s_init->struct_name, false, false, s_init->type_args};
         return s_init->evaluated_type;
     }
 
@@ -414,13 +547,20 @@ Type TypeChecker::check_expression(Expression& expr) {
             fa->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
             return fa->evaluated_type;
         }
-        auto field_it = it->second.fields.find(fa->field_name);
-        if (field_it == it->second.fields.end()) {
+        const auto& sig = it->second;
+        auto field_it = sig.fields.find(fa->field_name);
+        if (field_it == sig.fields.end()) {
             emit_error(fa->location, "no field '" + fa->field_name + "' on type '" + target_t.name + "'");
             fa->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
             return fa->evaluated_type;
         }
-        fa->evaluated_type = field_it->second;
+        std::map<std::string, Type> subst;
+        if (!sig.type_params.empty() && target_t.type_args.size() == sig.type_params.size()) {
+            for (size_t i = 0; i < sig.type_params.size(); ++i) {
+                subst[sig.type_params[i]] = target_t.type_args[i];
+            }
+        }
+        fa->evaluated_type = substitute_type(field_it->second, subst);
         return fa->evaluated_type;
     }
 

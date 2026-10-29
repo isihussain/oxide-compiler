@@ -91,9 +91,39 @@ std::unique_ptr<Program> Parser::parse_program() {
     return program;
 }
 
+std::vector<std::string> Parser::parse_type_parameters() {
+    std::vector<std::string> params;
+    if (match(TokenType::Lt)) {
+        if (!check(TokenType::Gt)) {
+            do {
+                params.push_back(consume(TokenType::Identifier, "Expected type parameter name").text);
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::Gt, "Expected '>' after type parameters");
+    }
+    return params;
+}
+
+std::vector<Type> Parser::parse_type_arguments() {
+    std::vector<Type> args;
+    if (match(TokenType::Lt)) {
+        if (!check(TokenType::Gt)) {
+            do {
+                args.push_back(parse_type());
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::Gt, "Expected '>' after type arguments");
+    }
+    return args;
+}
+
 std::unique_ptr<StructDef> Parser::parse_struct_definition() {
     SourceLocation loc = consume(TokenType::KwStruct, "Expected 'struct'").location;
     std::string name = consume(TokenType::Identifier, "Expected struct name").text;
+
+    auto old_type_params = current_type_params_;
+    auto type_params = parse_type_parameters();
+    current_type_params_ = type_params;
 
     consume(TokenType::LBrace, "Expected '{' after struct name");
     std::vector<StructField> fields;
@@ -107,7 +137,9 @@ std::unique_ptr<StructDef> Parser::parse_struct_definition() {
         }
     }
     consume(TokenType::RBrace, "Expected '}' to close struct definition");
-    return std::make_unique<StructDef>(name, std::move(fields), loc);
+    current_type_params_ = old_type_params;
+
+    return std::make_unique<StructDef>(name, std::move(fields), loc, std::move(type_params));
 }
 
 std::unique_ptr<EnumDef> Parser::parse_enum_definition() {
@@ -169,6 +201,10 @@ std::unique_ptr<Function> Parser::parse_function() {
     SourceLocation loc = consume(TokenType::KwFn, "Expected 'fn'").location;
     std::string name = consume(TokenType::Identifier, "Expected function name").text;
 
+    auto old_type_params = current_type_params_;
+    auto type_params = parse_type_parameters();
+    current_type_params_ = type_params;
+
     consume(TokenType::LParen, "Expected '(' after function name");
     std::vector<Parameter> params;
     if (!check(TokenType::RParen)) {
@@ -184,7 +220,9 @@ std::unique_ptr<Function> Parser::parse_function() {
     }
 
     auto body = parse_block();
-    return std::make_unique<Function>(name, std::move(params), return_type, std::move(body), loc);
+    current_type_params_ = old_type_params;
+
+    return std::make_unique<Function>(name, std::move(params), return_type, std::move(body), loc, "", std::move(type_params));
 }
 
 Parameter Parser::parse_parameter() {
@@ -212,8 +250,26 @@ Type Parser::parse_type() {
         consume(TokenType::RParen, "Expected ')' for unit type '()'");
         type.kind = BaseTypeKind::Unit;
     } else if (match(TokenType::Identifier)) {
+        std::string name = previous().text;
+        bool is_param = false;
+        for (const auto& tp : current_type_params_) {
+            if (tp == name) {
+                is_param = true;
+                break;
+            }
+        }
+        if (is_param) {
+            type.kind = BaseTypeKind::GenericParam;
+            type.name = name;
+            return type;
+        }
+
         type.kind = BaseTypeKind::Named;
-        type.name = previous().text;
+        type.name = name;
+        if (check(TokenType::Lt)) {
+            type.type_args = parse_type_arguments();
+        }
+        return type;
     } else {
         throw std::runtime_error("Expected type name at [" + std::to_string(peek().location.line) + ":" +
                                  std::to_string(peek().location.column) + "], found: " + peek().text);
@@ -426,7 +482,8 @@ std::unique_ptr<Expression> Parser::parse_primary() {
     if (match(TokenType::Identifier)) {
         std::string name = previous().text;
         // Enum variant constructor: Name::Variant or Name::Variant(arg)
-        if (match(TokenType::ColonColon)) {
+        if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Identifier) {
+            advance(); // consume '::'
             const Token& var_tok = consume(TokenType::Identifier, "Expected variant name after '::'");
             std::unique_ptr<Expression> payload = nullptr;
             if (match(TokenType::LParen)) {
@@ -435,6 +492,14 @@ std::unique_ptr<Expression> Parser::parse_primary() {
             }
             return std::make_unique<EnumVariantExpr>(name, var_tok.text, std::move(payload), loc);
         }
+
+        // Turbofish type arguments: ident::<i32>
+        std::vector<Type> type_args;
+        if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Lt) {
+            advance(); // consume '::'
+            type_args = parse_type_arguments();
+        }
+
         // Function call: ident(...)
         if (match(TokenType::LParen)) {
             std::vector<std::unique_ptr<Expression>> args;
@@ -444,8 +509,9 @@ std::unique_ptr<Expression> Parser::parse_primary() {
                 } while (match(TokenType::Comma));
             }
             consume(TokenType::RParen, "Expected ')' after call arguments");
-            return std::make_unique<CallExpr>(name, std::move(args), loc);
+            return std::make_unique<CallExpr>(name, std::move(args), loc, std::move(type_args));
         }
+
         // Struct literal: Name { field: value, ... }
         if (check(TokenType::LBrace) && cursor_ + 2 < tokens_.size() &&
             tokens_[cursor_ + 1].type == TokenType::Identifier &&
@@ -462,7 +528,7 @@ std::unique_ptr<Expression> Parser::parse_primary() {
                 }
             }
             consume(TokenType::RBrace, "Expected '}' to close struct literal");
-            return std::make_unique<StructInitExpr>(name, std::move(inits), loc);
+            return std::make_unique<StructInitExpr>(name, std::move(inits), loc, std::move(type_args));
         }
         return std::make_unique<VariableExpr>(name, loc);
     }

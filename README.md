@@ -21,6 +21,9 @@ Rust Source (.rs)
  [ Type Checker ] ─────► Annotated AST (Scope resolution, Type inference)
       │
       ▼
+ [ Monomorphizer ] ────► Concrete Specialized AST (Generics lowering)
+      │
+      ▼
  [ Borrow Checker ] ───► Ownership & Mutability Validation
       │
       ▼
@@ -32,6 +35,7 @@ Rust Source (.rs)
 * **Lexer (`include/lexer.hpp`, `src/lexer.cpp`)**: Tokenizes UTF-8 Rust source code, tracking line and column positions. Handles single-line and multi-line comments.
 * **Parser (`include/parser.hpp`, `src/parser.cpp`)**: Recursive descent parser that constructs the AST. Implements operator precedence parsing for expressions, functions, `let` bindings, control flow (`if`/`else`), and trailing block return expressions.
 * **Type Checker (`include/typeck.hpp`, `src/typeck.cpp`)**: Enforces Rust's static typing rules. Manages lexical scopes, validates function call arity and parameter types, and ensures block evaluations match return types.
+* **Monomorphizer (`include/monomorphize.hpp`, `src/monomorphize.cpp`)**: Reifies generic functions and compound structs into concrete specialized AST instances.
 * **Borrow Checker (`include/borrowck.hpp`, `src/borrowck.cpp`)**: Enforces core Rust memory safety rules:
   - Reassignment to immutable variables is rejected.
   - Mutable references (`&mut`) to immutable locals are rejected.
@@ -115,6 +119,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 08_extern_c_abi.rs (exit code: 42)
 [PASS] 09_aerospace_profile.rs (exit code: 42)
 [PASS] 10_tagged_union_enums.rs (exit code: 42)
+[PASS] 11_generics_monomorphization.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -131,8 +136,10 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_match_non_exhaustive.rs (correctly rejected)
 [PASS] fail_match_arm_type_mismatch.rs (correctly rejected)
 [PASS] fail_enum_payload_mismatch.rs (correctly rejected)
+[PASS] fail_generic_type_mismatch.rs (correctly rejected)
+[PASS] fail_generic_struct_field_mismatch.rs (correctly rejected)
 ==================================================
-Results: 26/26 tests passed.
+Results: 29/29 tests passed.
 ```
 
 ---
@@ -155,9 +162,9 @@ Results: 26/26 tests passed.
   - [x] Tagged union enums with payload support
   - [x] `match` pattern exhaustiveness checking
 - [ ] **Milestone 3: Generics and Traits**
-  - [ ] Parametric polymorphism (generics on functions and structs)
+  - [x] Parametric polymorphism (generics on functions and structs)
+  - [x] Monomorphization pass
   - [ ] Trait definitions and `impl` blocks
-  - [ ] Monomorphization pass
 - [ ] **Milestone 4: Full Borrow Checker (Polonius Algorithm)**
   - [ ] Control Flow Graph (CFG) / Mid-level IR (MIR) lowering
   - [ ] Non-Lexical Lifetimes (NLL) with loan origin tracking
