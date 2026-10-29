@@ -95,15 +95,40 @@ void BorrowChecker::check_expression(Expression& expr) {
     }
 
     if (auto* assign = dynamic_cast<AssignExpr*>(&expr)) {
-        VarState* st = lookup_variable(assign->target_var);
-        if (st) {
-            if (!st->is_mutable && st->is_initialized) {
-                emit_error(assign->location, "cannot assign twice to immutable variable '" + assign->target_var + "'");
+        if (auto* var = dynamic_cast<VariableExpr*>(assign->target.get())) {
+            VarState* st = lookup_variable(var->name);
+            if (st) {
+                if (!st->is_mutable && st->is_initialized) {
+                    emit_error(assign->location, "cannot assign twice to immutable variable '" + var->name + "'");
+                }
+                if (st->immutable_borrows > 0 || st->has_mutable_borrow) {
+                    emit_error(assign->location, "cannot assign to '" + var->name + "' because it is borrowed");
+                }
+                st->is_initialized = true;
             }
-            if (st->immutable_borrows > 0 || st->has_mutable_borrow) {
-                emit_error(assign->location, "cannot assign to '" + assign->target_var + "' because it is borrowed");
+        } else if (auto* fa = dynamic_cast<FieldAccessExpr*>(assign->target.get())) {
+            Expression* curr = fa->target.get();
+            while (auto* inner_fa = dynamic_cast<FieldAccessExpr*>(curr)) {
+                curr = inner_fa->target.get();
             }
-            st->is_initialized = true;
+            if (auto* base_var = dynamic_cast<VariableExpr*>(curr)) {
+                VarState* st = lookup_variable(base_var->name);
+                if (st) {
+                    if (!st->is_mutable) {
+                        emit_error(assign->location, "cannot assign to field '" + fa->field_name +
+                                   "' of immutable binding '" + base_var->name + "'");
+                    }
+                    if (st->immutable_borrows > 0 || st->has_mutable_borrow) {
+                        emit_error(assign->location, "cannot assign to field of borrowed variable '" + base_var->name + "'");
+                    }
+                }
+            }
+        } else if (auto* un = dynamic_cast<UnaryExpr*>(assign->target.get())) {
+            if (un->op == UnaryOp::Deref) {
+                if (!un->operand->evaluated_type.is_mut_ref) {
+                    emit_error(assign->location, "cannot assign to dereference of immutable reference");
+                }
+            }
         }
         check_expression(*assign->value);
         return;

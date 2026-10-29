@@ -245,18 +245,13 @@ Type TypeChecker::check_expression(Expression& expr) {
     }
 
     if (auto* assign = dynamic_cast<AssignExpr*>(&expr)) {
-        auto var_info = lookup_variable(assign->target_var);
-        if (!var_info) {
-            emit_error(assign->location, "cannot find variable '" + assign->target_var + "' to assign");
-        } else {
-            Type val_t = check_expression(*assign->value);
-            if (!(var_info->first == val_t)) {
-                emit_error(assign->location, "mismatched types in assignment to '" + assign->target_var +
-                           "': variable is '" + var_info->first.to_string() + "', value is '" +
-                           val_t.to_string() + "'");
-            }
+        Type target_t = check_expression(*assign->target);
+        Type val_t = check_expression(*assign->value);
+        if (!(target_t == val_t)) {
+            emit_error(assign->location, "mismatched types in assignment: target is '" +
+                       target_t.to_string() + "', value is '" + val_t.to_string() + "'");
         }
-        assign->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+        assign->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
         return assign->evaluated_type;
     }
 

@@ -205,14 +205,17 @@ std::unique_ptr<Expression> Parser::parse_assignment() {
 
     if (match(TokenType::Eq)) {
         SourceLocation loc = previous().location;
-        auto* var_expr = dynamic_cast<VariableExpr*>(expr.get());
-        if (!var_expr) {
+        bool is_valid_lvalue = (dynamic_cast<VariableExpr*>(expr.get()) != nullptr) ||
+                               (dynamic_cast<FieldAccessExpr*>(expr.get()) != nullptr) ||
+                               (dynamic_cast<UnaryExpr*>(expr.get()) != nullptr &&
+                                dynamic_cast<UnaryExpr*>(expr.get())->op == UnaryOp::Deref);
+
+        if (!is_valid_lvalue) {
             throw std::runtime_error("Invalid assignment target at [" +
                                      std::to_string(loc.line) + ":" + std::to_string(loc.column) + "]");
         }
-        std::string name = var_expr->name;
         auto value = parse_assignment();
-        return std::make_unique<AssignExpr>(name, std::move(value), loc);
+        return std::make_unique<AssignExpr>(std::move(expr), std::move(value), loc);
     }
 
     return expr;

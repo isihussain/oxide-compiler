@@ -77,8 +77,13 @@ void UnaryExpr::dump(int indent) const {
 
 void AssignExpr::dump(int indent) const {
     print_indent(indent);
-    std::cout << "AssignExpr(" << target_var << " = ) : " << evaluated_type.to_string() << "\n";
-    if (value) value->dump(indent + 1);
+    std::cout << "AssignExpr : " << evaluated_type.to_string() << "\n";
+    print_indent(indent + 1);
+    std::cout << "Target:\n";
+    if (target) target->dump(indent + 2);
+    print_indent(indent + 1);
+    std::cout << "Value:\n";
+    if (value) value->dump(indent + 2);
 }
 
 void CallExpr::dump(int indent) const {

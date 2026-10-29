@@ -182,7 +182,8 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         emit_expression(*un->operand);
         out_ << ")";
     } else if (auto* assign = dynamic_cast<const AssignExpr*>(&expr)) {
-        out_ << assign->target_var << " = ";
+        emit_expression(*assign->target);
+        out_ << " = ";
         emit_expression(*assign->value);
     } else if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
         out_ << call->callee << "(";
@@ -224,7 +225,11 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
     } else if (auto* fa = dynamic_cast<const FieldAccessExpr*>(&expr)) {
         out_ << "(";
         emit_expression(*fa->target);
-        out_ << "." << fa->field_name << ")";
+        if (fa->target->evaluated_type.is_ref) {
+            out_ << "->" << fa->field_name << ")";
+        } else {
+            out_ << "." << fa->field_name << ")";
+        }
     } else if (auto* while_expr = dynamic_cast<const WhileExpr*>(&expr)) {
         out_ << "while (";
         emit_expression(*while_expr->condition);

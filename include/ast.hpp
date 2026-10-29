@@ -104,11 +104,11 @@ struct UnaryExpr : public Expression {
 };
 
 struct AssignExpr : public Expression {
-    std::string target_var;
+    std::unique_ptr<Expression> target;
     std::unique_ptr<Expression> value;
 
-    AssignExpr(std::string target, std::unique_ptr<Expression> val, SourceLocation loc)
-        : target_var(std::move(target)), value(std::move(val)) { location = loc; }
+    AssignExpr(std::unique_ptr<Expression> tgt, std::unique_ptr<Expression> val, SourceLocation loc)
+        : target(std::move(tgt)), value(std::move(val)) { location = loc; }
     void dump(int indent = 0) const override;
 };
 

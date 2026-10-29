@@ -21,6 +21,8 @@ def run():
         ("examples/03_mutability.rs", 10),
         ("examples/04_structs.rs", 42),
         ("examples/05_while_loop.rs", 55),
+        ("examples/06_mutable_struct.rs", 42),
+        ("examples/07_mutable_reference.rs", 42),
     ]
 
     passed = 0
@@ -51,6 +53,8 @@ def run():
         ("tests/ui/fail_struct_missing_field.rs", "missing field"),
         ("tests/ui/fail_struct_invalid_field_access.rs", "no field"),
         ("tests/ui/fail_while_non_bool_condition.rs", "expected 'bool'"),
+        ("tests/ui/fail_assign_immutable_field.rs", "cannot assign to field"),
+        ("tests/ui/fail_deref_immutable_ref_assign.rs", "cannot assign to dereference of immutable reference"),
     ]
 
     for path_str, expected_err_sub in negative_tests:

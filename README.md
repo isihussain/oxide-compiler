@@ -102,6 +102,8 @@ Running Oxide Conformance Test Suite...
 [PASS] 03_mutability.rs (exit code: 10)
 [PASS] 04_structs.rs (exit code: 42)
 [PASS] 05_while_loop.rs (exit code: 55)
+[PASS] 06_mutable_struct.rs (exit code: 42)
+[PASS] 07_mutable_reference.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -109,8 +111,10 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_struct_missing_field.rs (correctly rejected)
 [PASS] fail_struct_invalid_field_access.rs (correctly rejected)
 [PASS] fail_while_non_bool_condition.rs (correctly rejected)
+[PASS] fail_assign_immutable_field.rs (correctly rejected)
+[PASS] fail_deref_immutable_ref_assign.rs (correctly rejected)
 ==================================================
-Results: 12/12 tests passed.
+Results: 16/16 tests passed.
 ```
 
 ---
@@ -127,6 +131,7 @@ Results: 12/12 tests passed.
 - [ ] **Milestone 2: Structs, Enums, and Pattern Matching**
   - [x] Compound struct declarations
   - [x] Struct literal instantiations and field access expressions
+  - [x] Mutable place expressions (l-values: `point.x = val`, `*ptr = val`)
   - [x] `while` loop control structures
   - [ ] Tagged union enums with payload support
   - [ ] `match` pattern exhaustiveness checking
