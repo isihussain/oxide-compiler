@@ -213,14 +213,32 @@ struct Parameter {
 
 struct Function : public ASTNode {
     std::string name;
+    std::string abi = ""; // e.g. "C" or "" (Rust)
     std::vector<Parameter> parameters;
     Type return_type;
     std::unique_ptr<BlockExpr> body;
 
     Function(std::string name, std::vector<Parameter> params, Type ret_type,
-             std::unique_ptr<BlockExpr> body, SourceLocation loc)
-        : name(std::move(name)), parameters(std::move(params)), return_type(ret_type),
+             std::unique_ptr<BlockExpr> body, SourceLocation loc, std::string abi = "")
+        : name(std::move(name)), abi(std::move(abi)), parameters(std::move(params)), return_type(ret_type),
           body(std::move(body)) { location = loc; }
+
+    void dump(int indent = 0) const;
+};
+
+struct ForeignFunctionDecl {
+    std::string name;
+    std::vector<Parameter> parameters;
+    Type return_type;
+    SourceLocation location;
+};
+
+struct ExternBlock : public ASTNode {
+    std::string abi; // e.g. "C"
+    std::vector<ForeignFunctionDecl> declarations;
+
+    ExternBlock(std::string abi, std::vector<ForeignFunctionDecl> decls, SourceLocation loc)
+        : abi(std::move(abi)), declarations(std::move(decls)) { location = loc; }
 
     void dump(int indent = 0) const;
 };
@@ -242,6 +260,7 @@ struct StructDef : public ASTNode {
 };
 
 struct Program : public ASTNode {
+    std::vector<std::unique_ptr<ExternBlock>> extern_blocks;
     std::vector<std::unique_ptr<StructDef>> structs;
     std::vector<std::unique_ptr<Function>> functions;
 

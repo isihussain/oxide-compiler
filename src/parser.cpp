@@ -62,6 +62,26 @@ std::unique_ptr<Program> Parser::parse_program() {
             program->functions.push_back(parse_function());
         } else if (check(TokenType::KwStruct)) {
             program->structs.push_back(parse_struct_definition());
+        } else if (check(TokenType::KwExtern)) {
+            if (cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::LBrace) {
+                program->extern_blocks.push_back(parse_extern_block());
+            } else if (cursor_ + 2 < tokens_.size() &&
+                       tokens_[cursor_ + 1].type == TokenType::LiteralString &&
+                       tokens_[cursor_ + 2].type == TokenType::LBrace) {
+                program->extern_blocks.push_back(parse_extern_block());
+            } else if (cursor_ + 2 < tokens_.size() &&
+                       tokens_[cursor_ + 1].type == TokenType::LiteralString &&
+                       tokens_[cursor_ + 2].type == TokenType::KwFn) {
+                advance(); // consume 'extern'
+                std::string abi = advance().text; // consume literal string
+                auto fn = parse_function();
+                fn->abi = abi;
+                program->functions.push_back(std::move(fn));
+            } else {
+                throw std::runtime_error("Unexpected token after 'extern' at [" +
+                                         std::to_string(peek().location.line) + ":" +
+                                         std::to_string(peek().location.column) + "]");
+            }
         } else {
             throw std::runtime_error("Unexpected token at top level: " + peek().to_string());
         }
@@ -86,6 +106,36 @@ std::unique_ptr<StructDef> Parser::parse_struct_definition() {
     }
     consume(TokenType::RBrace, "Expected '}' to close struct definition");
     return std::make_unique<StructDef>(name, std::move(fields), loc);
+}
+
+std::unique_ptr<ExternBlock> Parser::parse_extern_block() {
+    SourceLocation loc = consume(TokenType::KwExtern, "Expected 'extern'").location;
+    std::string abi = "C";
+    if (check(TokenType::LiteralString)) {
+        abi = advance().text;
+    }
+    consume(TokenType::LBrace, "Expected '{' to start extern block");
+    std::vector<ForeignFunctionDecl> decls;
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        consume(TokenType::KwFn, "Expected 'fn' in extern block");
+        const Token& name_tok = consume(TokenType::Identifier, "Expected foreign function name");
+        consume(TokenType::LParen, "Expected '(' after function name");
+        std::vector<Parameter> params;
+        if (!check(TokenType::RParen)) {
+            do {
+                params.push_back(parse_parameter());
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RParen, "Expected ')' after parameters");
+        Type return_type{BaseTypeKind::Unit, "", false, false};
+        if (match(TokenType::Arrow)) {
+            return_type = parse_type();
+        }
+        consume(TokenType::Semicolon, "Expected ';' after foreign function declaration");
+        decls.push_back(ForeignFunctionDecl{name_tok.text, std::move(params), return_type, name_tok.location});
+    }
+    consume(TokenType::RBrace, "Expected '}' to close extern block");
+    return std::make_unique<ExternBlock>(abi, std::move(decls), loc);
 }
 
 std::unique_ptr<Function> Parser::parse_function() {

@@ -73,6 +73,21 @@ void CCodeGenerator::emit_struct_declarations() {
 }
 
 void CCodeGenerator::emit_forward_declarations() {
+    for (const auto& eb : program_.extern_blocks) {
+        for (const auto& decl : eb->declarations) {
+            out_ << "extern " << map_type(decl.return_type) << " " << decl.name << "(";
+            if (decl.parameters.empty()) {
+                out_ << "void";
+            } else {
+                for (size_t i = 0; i < decl.parameters.size(); ++i) {
+                    if (i > 0) out_ << ", ";
+                    out_ << map_type(decl.parameters[i].type) << " " << decl.parameters[i].name;
+                }
+            }
+            out_ << ");\n";
+        }
+    }
+
     for (const auto& fn : program_.functions) {
         out_ << map_type(fn->return_type) << " " << fn->name << "(";
         if (fn->parameters.empty()) {

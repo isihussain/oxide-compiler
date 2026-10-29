@@ -63,6 +63,20 @@ void TypeChecker::register_structs() {
 }
 
 void TypeChecker::register_functions() {
+    for (const auto& eb : program_.extern_blocks) {
+        for (const auto& decl : eb->declarations) {
+            if (function_table_.find(decl.name) != function_table_.end()) {
+                emit_error(decl.location, "duplicate function definition: '" + decl.name + "'");
+                continue;
+            }
+            std::vector<Type> params;
+            for (const auto& p : decl.parameters) {
+                params.push_back(p.type);
+            }
+            function_table_[decl.name] = FunctionSignature{decl.name, params, decl.return_type, decl.location};
+        }
+    }
+
     for (const auto& fn : program_.functions) {
         if (function_table_.find(fn->name) != function_table_.end()) {
             emit_error(fn->location, "duplicate function definition: '" + fn->name + "'");

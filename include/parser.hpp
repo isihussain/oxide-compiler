@@ -24,6 +24,7 @@ private:
 
     std::unique_ptr<Function> parse_function();
     std::unique_ptr<StructDef> parse_struct_definition();
+    std::unique_ptr<ExternBlock> parse_extern_block();
     Parameter parse_parameter();
     Type parse_type();
 

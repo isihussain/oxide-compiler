@@ -23,6 +23,7 @@ private:
     Token scan_token();
     Token scan_identifier_or_keyword();
     Token scan_number();
+    Token scan_string();
 
     std::string source_;
     std::string filename_;

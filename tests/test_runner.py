@@ -23,6 +23,7 @@ def run():
         ("examples/05_while_loop.rs", 55),
         ("examples/06_mutable_struct.rs", 42),
         ("examples/07_mutable_reference.rs", 42),
+        ("examples/08_extern_c_abi.rs", 42),
     ]
 
     passed = 0
@@ -55,6 +56,8 @@ def run():
         ("tests/ui/fail_while_non_bool_condition.rs", "expected 'bool'"),
         ("tests/ui/fail_assign_immutable_field.rs", "cannot assign to field"),
         ("tests/ui/fail_deref_immutable_ref_assign.rs", "cannot assign to dereference of immutable reference"),
+        ("tests/ui/fail_extern_type_mismatch.rs", "mismatched type in argument 1"),
+        ("tests/ui/fail_extern_arity_mismatch.rs", "takes 1 arguments but 2 were supplied"),
     ]
 
     for path_str, expected_err_sub in negative_tests:

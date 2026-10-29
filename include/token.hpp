@@ -20,6 +20,7 @@ enum class TokenType {
     KwWhile,
     KwReturn,
     KwStruct,
+    KwExtern,
     KwTrue,
     KwFalse,
 
@@ -30,6 +31,7 @@ enum class TokenType {
     // Literals
     LiteralInt,
     LiteralBool,
+    LiteralString,
 
     // Identifiers
     Identifier,

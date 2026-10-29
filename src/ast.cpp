@@ -186,8 +186,27 @@ void StructDef::dump(int indent) const {
     std::cout << "}\n";
 }
 
+void ExternBlock::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "extern \"" << abi << "\" {\n";
+    for (const auto& decl : declarations) {
+        print_indent(indent + 1);
+        std::cout << "fn " << decl.name << "(";
+        for (size_t i = 0; i < decl.parameters.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << decl.parameters[i].name << ": " << decl.parameters[i].type.to_string();
+        }
+        std::cout << ") -> " << decl.return_type.to_string() << ";\n";
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
 void Function::dump(int indent) const {
     print_indent(indent);
+    if (!abi.empty()) {
+        std::cout << "extern \"" << abi << "\" ";
+    }
     std::cout << "Function " << name << "(";
     for (size_t i = 0; i < parameters.size(); ++i) {
         if (i > 0) std::cout << ", ";
@@ -202,6 +221,9 @@ void Function::dump(int indent) const {
 
 void Program::dump() const {
     std::cout << "Program {\n";
+    for (const auto& eb : extern_blocks) {
+        eb->dump(1);
+    }
     for (const auto& s : structs) {
         s->dump(1);
     }

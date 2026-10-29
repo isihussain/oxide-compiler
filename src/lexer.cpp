@@ -18,12 +18,14 @@ const char* token_type_name(TokenType type) {
         case TokenType::KwWhile: return "while";
         case TokenType::KwReturn: return "return";
         case TokenType::KwStruct: return "struct";
+        case TokenType::KwExtern: return "extern";
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
         case TokenType::TypeI32: return "i32";
         case TokenType::TypeBool: return "bool";
         case TokenType::LiteralInt: return "Integer";
         case TokenType::LiteralBool: return "Boolean";
+        case TokenType::LiteralString: return "String";
         case TokenType::Identifier: return "Identifier";
         case TokenType::Plus: return "+";
         case TokenType::Minus: return "-";
@@ -194,6 +196,7 @@ Token Lexer::scan_token() {
         case ')': return Token{TokenType::RParen, ")", 0, false, loc};
         case '{': return Token{TokenType::LBrace, "{", 0, false, loc};
         case '}': return Token{TokenType::RBrace, "}", 0, false, loc};
+        case '"': return scan_string();
         default:
             return Token{TokenType::Invalid, std::string(1, c), 0, false, loc};
     }
@@ -216,6 +219,7 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "while") return Token{TokenType::KwWhile, text, 0, false, loc};
     if (text == "return") return Token{TokenType::KwReturn, text, 0, false, loc};
     if (text == "struct") return Token{TokenType::KwStruct, text, 0, false, loc};
+    if (text == "extern") return Token{TokenType::KwExtern, text, 0, false, loc};
     if (text == "true") return Token{TokenType::LiteralBool, text, 0, true, loc};
     if (text == "false") return Token{TokenType::LiteralBool, text, 0, false, loc};
     if (text == "i32") return Token{TokenType::TypeI32, text, 0, false, loc};
@@ -233,6 +237,32 @@ Token Lexer::scan_number() {
     std::string text = source_.substr(start, cursor_ - start);
     int64_t val = std::stoll(text);
     return Token{TokenType::LiteralInt, text, val, false, loc};
+}
+
+Token Lexer::scan_string() {
+    SourceLocation loc{line_, column_};
+    std::string val;
+    while (!is_at_end() && peek() != '"') {
+        if (peek() == '\\') {
+            advance();
+            if (is_at_end()) break;
+            char esc = advance();
+            if (esc == 'n') val += '\n';
+            else if (esc == 't') val += '\t';
+            else if (esc == 'r') val += '\r';
+            else if (esc == '\\') val += '\\';
+            else if (esc == '"') val += '"';
+            else val += esc;
+        } else {
+            val += advance();
+        }
+    }
+    if (is_at_end()) {
+        throw std::runtime_error("Unterminated string literal at [" +
+                                 std::to_string(loc.line) + ":" + std::to_string(loc.column) + "]");
+    }
+    advance(); // consume closing '"'
+    return Token{TokenType::LiteralString, val, 0, false, loc};
 }
 
 } // namespace oxide
