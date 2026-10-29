@@ -175,6 +175,21 @@ void FieldAccessExpr::dump(int indent) const {
     if (target) target->dump(indent + 1);
 }
 
+void MethodCallExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "MethodCall(." << method_name << ") : " << evaluated_type.to_string() << "\n";
+    print_indent(indent + 1);
+    std::cout << "Receiver:\n";
+    if (receiver) receiver->dump(indent + 2);
+    if (!arguments.empty()) {
+        print_indent(indent + 1);
+        std::cout << "Arguments:\n";
+        for (const auto& arg : arguments) {
+            arg->dump(indent + 2);
+        }
+    }
+}
+
 void EnumVariantExpr::dump(int indent) const {
     print_indent(indent);
     std::cout << "EnumVariantExpr(" << enum_name << "::" << variant_name << ") : " << evaluated_type.to_string() << "\n";
@@ -295,6 +310,37 @@ void EnumDef::dump(int indent) const {
     std::cout << "}\n";
 }
 
+void TraitDef::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "Trait " << name << " {\n";
+    for (const auto& m : methods) {
+        print_indent(indent + 1);
+        std::cout << "fn " << m.name << "(";
+        for (size_t i = 0; i < m.parameters.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << (m.parameters[i].is_mut ? "mut " : "") << m.parameters[i].name
+                      << ": " << m.parameters[i].type.to_string();
+        }
+        std::cout << ") -> " << m.return_type.to_string() << ";\n";
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
+void ImplBlock::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "Impl ";
+    if (trait_name.has_value()) {
+        std::cout << *trait_name << " for ";
+    }
+    std::cout << target_type << " {\n";
+    for (const auto& fn : methods) {
+        fn->dump(indent + 1);
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
 void Program::dump() const {
     std::cout << "Program {\n";
     for (const auto& eb : extern_blocks) {
@@ -305,6 +351,12 @@ void Program::dump() const {
     }
     for (const auto& e : enums) {
         e->dump(1);
+    }
+    for (const auto& t : traits) {
+        t->dump(1);
+    }
+    for (const auto& ib : impl_blocks) {
+        ib->dump(1);
     }
     for (const auto& fn : functions) {
         fn->dump(1);

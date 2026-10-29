@@ -54,6 +54,11 @@ std::string CCodeGenerator::generate() {
     for (const auto& fn : program_.functions) {
         emit_function(*fn);
     }
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            emit_function(*fn);
+        }
+    }
 
     return out_.str();
 }
@@ -214,6 +219,21 @@ void CCodeGenerator::emit_forward_declarations() {
         }
         out_ << ");\n";
     }
+
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            out_ << map_type(fn->return_type) << " " << fn->name << "(";
+            if (fn->parameters.empty()) {
+                out_ << "void";
+            } else {
+                for (size_t i = 0; i < fn->parameters.size(); ++i) {
+                    if (i > 0) out_ << ", ";
+                    out_ << map_type(fn->parameters[i].type) << " " << fn->parameters[i].name;
+                }
+            }
+            out_ << ");\n";
+        }
+    }
     line();
 }
 
@@ -269,6 +289,19 @@ void CCodeGenerator::emit_statement(const Statement& stmt) {
         out_ << ";\n";
     } else if (auto* expr_stmt = dynamic_cast<const ExprStmt*>(&stmt)) {
         if (expr_stmt->expr) {
+            if (auto* if_expr = dynamic_cast<const IfExpr*>(expr_stmt->expr.get())) {
+                indent();
+                out_ << "if (";
+                emit_expression(*if_expr->condition);
+                out_ << ") ";
+                emit_block(*if_expr->then_branch, false);
+                if (if_expr->else_branch) {
+                    indent();
+                    out_ << "else ";
+                    emit_block(*if_expr->else_branch, false);
+                }
+                return;
+            }
             indent();
             emit_expression(*expr_stmt->expr);
             out_ << ";\n";
@@ -332,10 +365,34 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         out_ << " = ";
         emit_expression(*assign->value);
     } else if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
-        out_ << call->callee << "(";
+        std::string callee = call->callee;
+        size_t pos = 0;
+        while ((pos = callee.find("::", pos)) != std::string::npos) {
+            callee.replace(pos, 2, "__");
+            pos += 2;
+        }
+        out_ << callee << "(";
         for (size_t i = 0; i < call->arguments.size(); ++i) {
             if (i > 0) out_ << ", ";
             emit_expression(*call->arguments[i]);
+        }
+        out_ << ")";
+    } else if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        out_ << mc->resolved_callee << "(";
+        if (mc->resolved_self_kind == SelfKind::Ref || mc->resolved_self_kind == SelfKind::RefMut) {
+            if (mc->receiver->evaluated_type.is_ref) {
+                emit_expression(*mc->receiver);
+            } else {
+                out_ << "&(";
+                emit_expression(*mc->receiver);
+                out_ << ")";
+            }
+        } else {
+            emit_expression(*mc->receiver);
+        }
+        for (const auto& arg : mc->arguments) {
+            out_ << ", ";
+            emit_expression(*arg);
         }
         out_ << ")";
     } else if (auto* if_expr = dynamic_cast<const IfExpr*>(&expr)) {

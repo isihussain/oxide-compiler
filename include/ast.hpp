@@ -181,6 +181,28 @@ struct FieldAccessExpr : public Expression {
     void dump(int indent = 0) const override;
 };
 
+enum class SelfKind {
+    Value,
+    Ref,
+    RefMut,
+};
+
+struct MethodCallExpr : public Expression {
+    std::unique_ptr<Expression> receiver;
+    std::string method_name;
+    std::vector<Type> type_args;
+    std::vector<std::unique_ptr<Expression>> arguments;
+    SelfKind resolved_self_kind = SelfKind::Value;
+    std::string resolved_callee = "";
+
+    MethodCallExpr(std::unique_ptr<Expression> recv, std::string method,
+                   std::vector<std::unique_ptr<Expression>> args, SourceLocation loc,
+                   std::vector<Type> t_args = {})
+        : receiver(std::move(recv)), method_name(std::move(method)),
+          type_args(std::move(t_args)), arguments(std::move(args)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
 struct EnumVariantExpr : public Expression {
     std::string enum_name;
     std::string variant_name;
@@ -260,6 +282,8 @@ struct Parameter {
 struct Function : public ASTNode {
     std::string name;
     std::string abi = ""; // e.g. "C" or "" (Rust)
+    std::string method_name = ""; // non-empty if part of an impl block
+    std::string target_type = ""; // non-empty if part of an impl block
     std::vector<std::string> type_params;
     std::vector<Parameter> parameters;
     Type return_type;
@@ -329,10 +353,42 @@ struct EnumDef : public ASTNode {
     void dump(int indent = 0) const;
 };
 
+struct TraitMethod {
+    std::string name;
+    std::vector<Parameter> parameters;
+    Type return_type;
+    SourceLocation location;
+};
+
+struct TraitDef : public ASTNode {
+    std::string name;
+    std::vector<TraitMethod> methods;
+
+    TraitDef(std::string name, std::vector<TraitMethod> methods, SourceLocation loc)
+        : name(std::move(name)), methods(std::move(methods)) { location = loc; }
+
+    void dump(int indent = 0) const;
+};
+
+struct ImplBlock : public ASTNode {
+    std::optional<std::string> trait_name; // e.g. "Shape"
+    std::string target_type;              // e.g. "Rectangle"
+    std::vector<std::unique_ptr<Function>> methods;
+
+    ImplBlock(std::optional<std::string> trait, std::string target,
+              std::vector<std::unique_ptr<Function>> methods, SourceLocation loc)
+        : trait_name(std::move(trait)), target_type(std::move(target)),
+          methods(std::move(methods)) { location = loc; }
+
+    void dump(int indent = 0) const;
+};
+
 struct Program : public ASTNode {
     std::vector<std::unique_ptr<ExternBlock>> extern_blocks;
     std::vector<std::unique_ptr<StructDef>> structs;
     std::vector<std::unique_ptr<EnumDef>> enums;
+    std::vector<std::unique_ptr<TraitDef>> traits;
+    std::vector<std::unique_ptr<ImplBlock>> impl_blocks;
     std::vector<std::unique_ptr<Function>> functions;
 
     void dump() const;

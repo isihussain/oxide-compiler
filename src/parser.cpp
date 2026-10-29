@@ -57,6 +57,13 @@ std::unique_ptr<Program> Parser::parse_program() {
     auto program = std::make_unique<Program>();
     program->location = peek().location;
 
+    for (size_t i = 0; i < tokens_.size(); ++i) {
+        if (tokens_[i].type == TokenType::KwEnum && i + 1 < tokens_.size() &&
+            tokens_[i + 1].type == TokenType::Identifier) {
+            known_enums_.insert(tokens_[i + 1].text);
+        }
+    }
+
     while (!is_at_end()) {
         if (check(TokenType::KwFn)) {
             program->functions.push_back(parse_function());
@@ -64,6 +71,10 @@ std::unique_ptr<Program> Parser::parse_program() {
             program->structs.push_back(parse_struct_definition());
         } else if (check(TokenType::KwEnum)) {
             program->enums.push_back(parse_enum_definition());
+        } else if (check(TokenType::KwTrait)) {
+            program->traits.push_back(parse_trait_definition());
+        } else if (check(TokenType::KwImpl)) {
+            program->impl_blocks.push_back(parse_impl_block());
         } else if (check(TokenType::KwExtern)) {
             if (cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::LBrace) {
                 program->extern_blocks.push_back(parse_extern_block());
@@ -167,6 +178,64 @@ std::unique_ptr<EnumDef> Parser::parse_enum_definition() {
     return std::make_unique<EnumDef>(name, std::move(variants), loc);
 }
 
+std::unique_ptr<TraitDef> Parser::parse_trait_definition() {
+    SourceLocation loc = consume(TokenType::KwTrait, "Expected 'trait'").location;
+    std::string name = consume(TokenType::Identifier, "Expected trait name").text;
+    consume(TokenType::LBrace, "Expected '{' to start trait definition");
+
+    std::vector<TraitMethod> methods;
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        SourceLocation m_loc = consume(TokenType::KwFn, "Expected 'fn' in trait definition").location;
+        std::string m_name = consume(TokenType::Identifier, "Expected method name").text;
+
+        consume(TokenType::LParen, "Expected '(' after method name");
+        std::vector<Parameter> params;
+        if (!check(TokenType::RParen)) {
+            do {
+                params.push_back(parse_parameter("Self"));
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RParen, "Expected ')' after parameters");
+
+        Type return_type{BaseTypeKind::Unit, false, false};
+        if (match(TokenType::Arrow)) {
+            return_type = parse_type();
+        }
+
+        consume(TokenType::Semicolon, "Expected ';' after trait method prototype");
+        methods.push_back(TraitMethod{m_name, std::move(params), return_type, m_loc});
+    }
+    consume(TokenType::RBrace, "Expected '}' to close trait definition");
+
+    return std::make_unique<TraitDef>(name, std::move(methods), loc);
+}
+
+std::unique_ptr<ImplBlock> Parser::parse_impl_block() {
+    SourceLocation loc = consume(TokenType::KwImpl, "Expected 'impl'").location;
+    std::string first_id = consume(TokenType::Identifier, "Expected trait or type name after 'impl'").text;
+
+    std::optional<std::string> trait_name = std::nullopt;
+    std::string target_type;
+
+    if (match(TokenType::KwFor)) {
+        trait_name = first_id;
+        target_type = consume(TokenType::Identifier, "Expected target type name after 'for'").text;
+    } else {
+        target_type = first_id;
+    }
+
+    consume(TokenType::LBrace, "Expected '{' to start impl block");
+
+    std::vector<std::unique_ptr<Function>> methods;
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        auto fn = parse_function(target_type);
+        methods.push_back(std::move(fn));
+    }
+    consume(TokenType::RBrace, "Expected '}' to close impl block");
+
+    return std::make_unique<ImplBlock>(trait_name, target_type, std::move(methods), loc);
+}
+
 std::unique_ptr<ExternBlock> Parser::parse_extern_block() {
     SourceLocation loc = consume(TokenType::KwExtern, "Expected 'extern'").location;
     std::string abi = "C";
@@ -197,11 +266,14 @@ std::unique_ptr<ExternBlock> Parser::parse_extern_block() {
     return std::make_unique<ExternBlock>(abi, std::move(decls), loc);
 }
 
-std::unique_ptr<Function> Parser::parse_function() {
+std::unique_ptr<Function> Parser::parse_function(const std::string& target_type) {
     SourceLocation loc = consume(TokenType::KwFn, "Expected 'fn'").location;
-    std::string name = consume(TokenType::Identifier, "Expected function name").text;
+    std::string raw_name = consume(TokenType::Identifier, "Expected function name").text;
 
     auto old_type_params = current_type_params_;
+    auto old_target_type = current_target_type_;
+    current_target_type_ = target_type;
+
     auto type_params = parse_type_parameters();
     current_type_params_ = type_params;
 
@@ -209,7 +281,7 @@ std::unique_ptr<Function> Parser::parse_function() {
     std::vector<Parameter> params;
     if (!check(TokenType::RParen)) {
         do {
-            params.push_back(parse_parameter());
+            params.push_back(parse_parameter(target_type));
         } while (match(TokenType::Comma));
     }
     consume(TokenType::RParen, "Expected ')' after parameters");
@@ -221,16 +293,74 @@ std::unique_ptr<Function> Parser::parse_function() {
 
     auto body = parse_block();
     current_type_params_ = old_type_params;
+    current_target_type_ = old_target_type;
 
-    return std::make_unique<Function>(name, std::move(params), return_type, std::move(body), loc, "", std::move(type_params));
+    std::string fn_name = raw_name;
+    std::string m_name = "";
+    if (!target_type.empty()) {
+        fn_name = target_type + "__" + raw_name;
+        m_name = raw_name;
+    }
+
+    auto fn = std::make_unique<Function>(fn_name, std::move(params), return_type, std::move(body), loc, "", std::move(type_params));
+    fn->method_name = m_name;
+    fn->target_type = target_type;
+    return fn;
 }
 
-Parameter Parser::parse_parameter() {
-    bool is_mut = match(TokenType::KwMut);
+Parameter Parser::parse_parameter(const std::string& target_type) {
+    SourceLocation loc = peek().location;
+
+    // &mut self
+    if (match(TokenType::Amp)) {
+        if (match(TokenType::KwMut)) {
+            if (match(TokenType::KwSelfValue)) {
+                std::string self_type_name = target_type.empty() ? "Self" : target_type;
+                return Parameter{"self", Type{BaseTypeKind::Named, self_type_name, true, true}, true, loc};
+            } else {
+                throw std::runtime_error("Expected 'self' after '&mut' in parameter at [" +
+                                         std::to_string(loc.line) + ":" + std::to_string(loc.column) + "]");
+            }
+        } else if (match(TokenType::KwSelfValue)) {
+            std::string self_type_name = target_type.empty() ? "Self" : target_type;
+            return Parameter{"self", Type{BaseTypeKind::Named, self_type_name, true, false}, false, loc};
+        } else {
+            throw std::runtime_error("Expected 'self' or type after '&' in parameter at [" +
+                                     std::to_string(loc.line) + ":" + std::to_string(loc.column) + "]");
+        }
+    }
+
+    // mut self or mut param: Type
+    if (match(TokenType::KwMut)) {
+        if (match(TokenType::KwSelfValue)) {
+            if (match(TokenType::Colon)) {
+                Type type = parse_type();
+                return Parameter{"self", type, true, loc};
+            }
+            std::string self_type_name = target_type.empty() ? "Self" : target_type;
+            return Parameter{"self", Type{BaseTypeKind::Named, self_type_name, false, false}, true, loc};
+        }
+        const Token& name_tok = consume(TokenType::Identifier, "Expected parameter name");
+        consume(TokenType::Colon, "Expected ':' after parameter name");
+        Type type = parse_type();
+        return Parameter{name_tok.text, type, true, name_tok.location};
+    }
+
+    // self
+    if (match(TokenType::KwSelfValue)) {
+        if (match(TokenType::Colon)) {
+            Type type = parse_type();
+            return Parameter{"self", type, false, loc};
+        }
+        std::string self_type_name = target_type.empty() ? "Self" : target_type;
+        return Parameter{"self", Type{BaseTypeKind::Named, self_type_name, false, false}, false, loc};
+    }
+
+    // Regular parameter: name: Type
     const Token& name_tok = consume(TokenType::Identifier, "Expected parameter name");
     consume(TokenType::Colon, "Expected ':' after parameter name");
     Type type = parse_type();
-    return Parameter{name_tok.text, type, is_mut, name_tok.location};
+    return Parameter{name_tok.text, type, false, name_tok.location};
 }
 
 Type Parser::parse_type() {
@@ -251,6 +381,9 @@ Type Parser::parse_type() {
         type.kind = BaseTypeKind::Unit;
     } else if (match(TokenType::Identifier)) {
         std::string name = previous().text;
+        if (name == "Self" && !current_target_type_.empty()) {
+            name = current_target_type_;
+        }
         bool is_param = false;
         for (const auto& tp : current_type_params_) {
             if (tp == name) {
@@ -445,15 +578,39 @@ std::unique_ptr<Expression> Parser::parse_unary() {
     }
 
     auto expr = parse_primary();
-    while (match(TokenType::Dot)) {
-        const Token& field_tok = consume(TokenType::Identifier, "Expected field name after '.'");
-        expr = std::make_unique<FieldAccessExpr>(std::move(expr), field_tok.text, field_tok.location);
+    while (true) {
+        if (match(TokenType::Dot)) {
+            const Token& member_tok = consume(TokenType::Identifier, "Expected field or method name after '.'");
+            std::vector<Type> type_args;
+            if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Lt) {
+                advance(); // consume '::'
+                type_args = parse_type_arguments();
+            }
+            if (match(TokenType::LParen)) {
+                std::vector<std::unique_ptr<Expression>> args;
+                if (!check(TokenType::RParen)) {
+                    do {
+                        args.push_back(parse_expression());
+                    } while (match(TokenType::Comma));
+                }
+                consume(TokenType::RParen, "Expected ')' after method arguments");
+                expr = std::make_unique<MethodCallExpr>(std::move(expr), member_tok.text, std::move(args), member_tok.location, std::move(type_args));
+            } else {
+                expr = std::make_unique<FieldAccessExpr>(std::move(expr), member_tok.text, member_tok.location);
+            }
+        } else {
+            break;
+        }
     }
     return expr;
 }
 
 std::unique_ptr<Expression> Parser::parse_primary() {
     SourceLocation loc = peek().location;
+
+    if (match(TokenType::KwSelfValue)) {
+        return std::make_unique<VariableExpr>("self", previous().location);
+    }
 
     if (match(TokenType::LiteralInt)) {
         return std::make_unique<IntegerLiteralExpr>(previous().int_value, loc);
@@ -481,16 +638,35 @@ std::unique_ptr<Expression> Parser::parse_primary() {
 
     if (match(TokenType::Identifier)) {
         std::string name = previous().text;
-        // Enum variant constructor: Name::Variant or Name::Variant(arg)
+        // Enum variant constructor or associated function: Name::Variant or Type::func(...)
         if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Identifier) {
             advance(); // consume '::'
-            const Token& var_tok = consume(TokenType::Identifier, "Expected variant name after '::'");
-            std::unique_ptr<Expression> payload = nullptr;
-            if (match(TokenType::LParen)) {
-                payload = parse_expression();
-                consume(TokenType::RParen, "Expected ')' after variant payload");
+            const Token& member_tok = consume(TokenType::Identifier, "Expected identifier after '::'");
+            if (known_enums_.count(name)) {
+                std::unique_ptr<Expression> payload = nullptr;
+                if (match(TokenType::LParen)) {
+                    payload = parse_expression();
+                    consume(TokenType::RParen, "Expected ')' after variant payload");
+                }
+                return std::make_unique<EnumVariantExpr>(name, member_tok.text, std::move(payload), loc);
+            } else {
+                std::vector<Type> type_args;
+                if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Lt) {
+                    advance(); // consume '::'
+                    type_args = parse_type_arguments();
+                }
+                if (match(TokenType::LParen)) {
+                    std::vector<std::unique_ptr<Expression>> args;
+                    if (!check(TokenType::RParen)) {
+                        do {
+                            args.push_back(parse_expression());
+                        } while (match(TokenType::Comma));
+                    }
+                    consume(TokenType::RParen, "Expected ')' after call arguments");
+                    return std::make_unique<CallExpr>(name + "::" + member_tok.text, std::move(args), loc, std::move(type_args));
+                }
+                return std::make_unique<VariableExpr>(name + "::" + member_tok.text, loc);
             }
-            return std::make_unique<EnumVariantExpr>(name, var_tok.text, std::move(payload), loc);
         }
 
         // Turbofish type arguments: ident::<i32>

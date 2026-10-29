@@ -120,6 +120,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 09_aerospace_profile.rs (exit code: 42)
 [PASS] 10_tagged_union_enums.rs (exit code: 42)
 [PASS] 11_generics_monomorphization.rs (exit code: 42)
+[PASS] 12_traits_and_impl.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -133,13 +134,18 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_extern_arity_mismatch.rs (correctly rejected)
 [PASS] fail_aerospace_recursion.rs (correctly rejected)
 [PASS] fail_aerospace_mutual_recursion.rs (correctly rejected)
+[PASS] fail_aerospace_method_recursion.rs (correctly rejected)
 [PASS] fail_match_non_exhaustive.rs (correctly rejected)
 [PASS] fail_match_arm_type_mismatch.rs (correctly rejected)
 [PASS] fail_enum_payload_mismatch.rs (correctly rejected)
 [PASS] fail_generic_type_mismatch.rs (correctly rejected)
 [PASS] fail_generic_struct_field_mismatch.rs (correctly rejected)
+[PASS] fail_missing_trait_method.rs (correctly rejected)
+[PASS] fail_trait_signature_mismatch.rs (correctly rejected)
+[PASS] fail_method_not_found.rs (correctly rejected)
+[PASS] fail_immutable_method_call.rs (correctly rejected)
 ==================================================
-Results: 29/29 tests passed.
+Results: 35/35 tests passed.
 ```
 
 ---
@@ -161,10 +167,10 @@ Results: 29/29 tests passed.
   - [x] Foreign Function Interface (`extern "C"` declaration blocks)
   - [x] Tagged union enums with payload support
   - [x] `match` pattern exhaustiveness checking
-- [ ] **Milestone 3: Generics and Traits**
+- [x] **Milestone 3: Generics and Traits**
   - [x] Parametric polymorphism (generics on functions and structs)
   - [x] Monomorphization pass
-  - [ ] Trait definitions and `impl` blocks
+  - [x] Trait definitions and `impl` blocks
 - [ ] **Milestone 4: Full Borrow Checker (Polonius Algorithm)**
   - [ ] Control Flow Graph (CFG) / Mid-level IR (MIR) lowering
   - [ ] Non-Lexical Lifetimes (NLL) with loan origin tracking

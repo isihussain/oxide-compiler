@@ -45,6 +45,11 @@ bool BorrowChecker::check() {
     for (auto& fn : program_.functions) {
         check_function(*fn);
     }
+    for (auto& ib : program_.impl_blocks) {
+        for (auto& fn : ib->methods) {
+            check_function(*fn);
+        }
+    }
     return errors_.empty();
 }
 
@@ -178,6 +183,43 @@ void BorrowChecker::check_expression(Expression& expr) {
 
     if (auto* call = dynamic_cast<CallExpr*>(&expr)) {
         for (auto& arg : call->arguments) {
+            check_expression(*arg);
+        }
+        return;
+    }
+
+    if (auto* mc = dynamic_cast<MethodCallExpr*>(&expr)) {
+        if (mc->resolved_self_kind == SelfKind::RefMut) {
+            if (auto* target_var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                VarState* st = lookup_variable(target_var->name);
+                if (st) {
+                    if (!st->is_mutable) {
+                        emit_error(mc->location, "cannot borrow immutable local variable '" +
+                                   target_var->name + "' as mutable in method call");
+                    }
+                    if (st->immutable_borrows > 0) {
+                        emit_error(mc->location, "cannot borrow '" + target_var->name +
+                                   "' as mutable because it is also borrowed as immutable");
+                    }
+                    if (st->has_mutable_borrow) {
+                        emit_error(mc->location, "cannot borrow '" + target_var->name +
+                                   "' as mutable more than once at a time");
+                    }
+                }
+            }
+        } else if (mc->resolved_self_kind == SelfKind::Ref) {
+            if (auto* target_var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                VarState* st = lookup_variable(target_var->name);
+                if (st) {
+                    if (st->has_mutable_borrow) {
+                        emit_error(mc->location, "cannot borrow '" + target_var->name +
+                                   "' as immutable because it is also borrowed as mutable");
+                    }
+                }
+            }
+        }
+        check_expression(*mc->receiver);
+        for (auto& arg : mc->arguments) {
             check_expression(*arg);
         }
         return;

@@ -154,12 +154,127 @@ bool TypeChecker::unify_type(const Type& pattern, const Type& concrete, std::map
     return pattern.kind == concrete.kind;
 }
 
+void TypeChecker::register_traits() {
+    for (const auto& t : program_.traits) {
+        if (trait_table_.find(t->name) != trait_table_.end()) {
+            emit_error(t->location, "duplicate trait definition: '" + t->name + "'");
+            continue;
+        }
+        TraitSignature sig;
+        sig.name = t->name;
+        sig.location = t->location;
+        for (const auto& m : t->methods) {
+            if (sig.methods.find(m.name) != sig.methods.end()) {
+                emit_error(m.location, "duplicate method '" + m.name + "' in trait '" + t->name + "'");
+            }
+            sig.methods[m.name] = TraitMethodSignature{m.name, m.parameters, m.return_type, m.location};
+        }
+        trait_table_[t->name] = std::move(sig);
+    }
+}
+
+void TypeChecker::register_impl_blocks() {
+    for (const auto& ib : program_.impl_blocks) {
+        if (struct_table_.find(ib->target_type) == struct_table_.end()) {
+            emit_error(ib->location, "cannot find type '" + ib->target_type + "' in this scope");
+        }
+
+        if (ib->trait_name.has_value()) {
+            const std::string& trait_name = *ib->trait_name;
+            auto t_it = trait_table_.find(trait_name);
+            if (t_it == trait_table_.end()) {
+                emit_error(ib->location, "cannot find trait '" + trait_name + "' in this scope");
+                continue;
+            }
+            const auto& trait_sig = t_it->second;
+
+            // Check trait completeness: ensure all trait methods are implemented
+            for (const auto& [req_name, req_method] : trait_sig.methods) {
+                bool found = false;
+                for (const auto& m : ib->methods) {
+                    if (m->method_name == req_name) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    emit_error(ib->location, "missing items in 'impl " + trait_name + " for " +
+                               ib->target_type + "': method '" + req_name + "' not implemented");
+                }
+            }
+
+            // Check signatures of implemented trait methods
+            for (const auto& m : ib->methods) {
+                auto req_it = trait_sig.methods.find(m->method_name);
+                if (req_it == trait_sig.methods.end()) {
+                    emit_error(m->location, "method '" + m->method_name + "' is not a member of trait '" + trait_name + "'");
+                    continue;
+                }
+                const auto& req_method = req_it->second;
+
+                if (m->parameters.size() != req_method.parameters.size()) {
+                    emit_error(m->location, "method '" + m->method_name + "' has " +
+                               std::to_string(m->parameters.size()) + " parameters but the trait requires " +
+                               std::to_string(req_method.parameters.size()));
+                } else {
+                    for (size_t i = 0; i < m->parameters.size(); ++i) {
+                        Type exp_type = req_method.parameters[i].type;
+                        if (exp_type.name == "Self") {
+                            exp_type.name = ib->target_type;
+                        }
+                        if (m->parameters[i].type != exp_type) {
+                            emit_error(m->parameters[i].location, "method '" + m->method_name +
+                                       "' has an incompatible type for parameter '" +
+                                       m->parameters[i].name + "': expected '" + exp_type.to_string() +
+                                       "', found '" + m->parameters[i].type.to_string() + "'");
+                        }
+                    }
+                }
+
+                if (m->return_type != req_method.return_type) {
+                    emit_error(m->location, "method '" + m->method_name +
+                               "' has an incompatible return type: expected '" +
+                               req_method.return_type.to_string() + "', found '" +
+                               m->return_type.to_string() + "'");
+                }
+            }
+        }
+
+        // Register methods in method_table_ and function_table_
+        for (const auto& m : ib->methods) {
+            std::pair<std::string, std::string> key{ib->target_type, m->method_name};
+            if (method_table_.find(key) != method_table_.end()) {
+                emit_error(m->location, "duplicate method '" + m->method_name + "' for type '" + ib->target_type + "'");
+            }
+            method_table_[key] = MethodSignature{
+                ib->target_type, m->method_name, m->name, m->parameters, m->return_type, ib->trait_name, m->location
+            };
+
+            std::vector<Type> param_types;
+            for (const auto& p : m->parameters) {
+                param_types.push_back(p.type);
+            }
+            function_table_[m->name] = FunctionSignature{m->name, m->type_params, param_types, m->return_type, m->location};
+            function_table_[ib->target_type + "::" + m->method_name] = FunctionSignature{
+                ib->target_type + "::" + m->method_name, m->type_params, param_types, m->return_type, m->location
+            };
+        }
+    }
+}
+
 bool TypeChecker::check() {
+    register_traits();
     register_structs();
     register_enums();
     register_functions();
+    register_impl_blocks();
     for (auto& fn : program_.functions) {
         check_function(*fn);
+    }
+    for (auto& ib : program_.impl_blocks) {
+        for (auto& fn : ib->methods) {
+            check_function(*fn);
+        }
     }
     return errors_.empty();
 }
@@ -562,6 +677,73 @@ Type TypeChecker::check_expression(Expression& expr) {
         }
         fa->evaluated_type = substitute_type(field_it->second, subst);
         return fa->evaluated_type;
+    }
+
+    if (auto* mc = dynamic_cast<MethodCallExpr*>(&expr)) {
+        Type receiver_t = check_expression(*mc->receiver);
+        std::string base_struct = receiver_t.name;
+        if (receiver_t.kind != BaseTypeKind::Named || struct_table_.find(base_struct) == struct_table_.end()) {
+            emit_error(mc->location, "cannot call method '" + mc->method_name + "' on non-struct type '" + receiver_t.to_string() + "'");
+            mc->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return mc->evaluated_type;
+        }
+
+        auto it = method_table_.find({base_struct, mc->method_name});
+        if (it == method_table_.end()) {
+            emit_error(mc->location, "no method named '" + mc->method_name + "' found for type '" + base_struct + "'");
+            mc->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return mc->evaluated_type;
+        }
+
+        const auto& method_sig = it->second;
+        if (method_sig.parameters.empty()) {
+            emit_error(mc->location, "method '" + mc->method_name + "' on type '" + base_struct + "' is an associated function without a self receiver");
+            mc->evaluated_type = method_sig.return_type;
+            return mc->evaluated_type;
+        }
+
+        const auto& self_param = method_sig.parameters[0];
+        SelfKind self_kind = SelfKind::Value;
+        if (self_param.type.is_ref) {
+            self_kind = self_param.type.is_mut_ref ? SelfKind::RefMut : SelfKind::Ref;
+        }
+        mc->resolved_self_kind = self_kind;
+        mc->resolved_callee = method_sig.mangled_name;
+
+        // Check mutability if method takes &mut self
+        if (self_kind == SelfKind::RefMut) {
+            if (auto* var_expr = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                auto var_info = lookup_variable(var_expr->name);
+                if (var_info && !var_info->second && !receiver_t.is_mut_ref) {
+                    emit_error(mc->location, "cannot borrow immutable local variable '" + var_expr->name + "' as mutable in method call");
+                }
+            }
+            if (receiver_t.is_ref && !receiver_t.is_mut_ref) {
+                emit_error(mc->location, "cannot borrow data in a '&' reference as mutable");
+            }
+        }
+
+        size_t expected_args = method_sig.parameters.size() - 1;
+        if (mc->arguments.size() != expected_args) {
+            emit_error(mc->location, "method '" + mc->method_name + "' takes " +
+                       std::to_string(expected_args) + " arguments but " +
+                       std::to_string(mc->arguments.size()) + " were supplied");
+            mc->evaluated_type = method_sig.return_type;
+            return mc->evaluated_type;
+        }
+
+        for (size_t i = 0; i < mc->arguments.size(); ++i) {
+            Type arg_t = check_expression(*mc->arguments[i]);
+            Type exp_t = method_sig.parameters[i + 1].type;
+            if (!(arg_t == exp_t)) {
+                emit_error(mc->arguments[i]->location, "mismatched type in argument " + std::to_string(i + 1) +
+                           " to method '" + mc->method_name + "': expected '" + exp_t.to_string() +
+                           "', found '" + arg_t.to_string() + "'");
+            }
+        }
+
+        mc->evaluated_type = method_sig.return_type;
+        return mc->evaluated_type;
     }
 
     if (auto* ev = dynamic_cast<EnumVariantExpr*>(&expr)) {

@@ -77,6 +77,17 @@ void AerospaceVerifier::collect_calls_from_expr(const std::string& caller, const
         return;
     }
 
+    if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        if (!mc->resolved_callee.empty()) {
+            call_graph_[caller].insert(mc->resolved_callee);
+        }
+        collect_calls_from_expr(caller, *mc->receiver);
+        for (const auto& arg : mc->arguments) {
+            collect_calls_from_expr(caller, *arg);
+        }
+        return;
+    }
+
     if (auto* ev = dynamic_cast<const EnumVariantExpr*>(&expr)) {
         if (ev->payload) {
             collect_calls_from_expr(caller, *ev->payload);
@@ -116,6 +127,15 @@ void AerospaceVerifier::build_call_graph() {
         call_graph_[fn->name] = {};
         if (fn->body) {
             collect_calls_from_block(fn->name, *fn->body);
+        }
+    }
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            func_locations_[fn->name] = fn->location;
+            call_graph_[fn->name] = {};
+            if (fn->body) {
+                collect_calls_from_block(fn->name, *fn->body);
+            }
         }
     }
 }

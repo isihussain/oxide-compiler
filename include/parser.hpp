@@ -3,6 +3,7 @@
 #include "ast.hpp"
 #include "token.hpp"
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace oxide {
@@ -22,13 +23,15 @@ private:
     bool match(TokenType type);
     const Token& consume(TokenType type, const std::string& error_message);
 
-    std::unique_ptr<Function> parse_function();
+    std::unique_ptr<Function> parse_function(const std::string& target_type = "");
     std::unique_ptr<StructDef> parse_struct_definition();
     std::unique_ptr<EnumDef> parse_enum_definition();
+    std::unique_ptr<TraitDef> parse_trait_definition();
+    std::unique_ptr<ImplBlock> parse_impl_block();
     std::unique_ptr<ExternBlock> parse_extern_block();
     std::vector<std::string> parse_type_parameters();
     std::vector<Type> parse_type_arguments();
-    Parameter parse_parameter();
+    Parameter parse_parameter(const std::string& target_type = "");
     Type parse_type();
 
     std::unique_ptr<BlockExpr> parse_block();
@@ -50,6 +53,8 @@ private:
 
     std::vector<Token> tokens_;
     std::vector<std::string> current_type_params_;
+    std::unordered_set<std::string> known_enums_;
+    std::string current_target_type_;
     size_t cursor_ = 0;
 };
 

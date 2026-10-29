@@ -20,6 +20,10 @@ const char* token_type_name(TokenType type) {
         case TokenType::KwStruct: return "struct";
         case TokenType::KwEnum: return "enum";
         case TokenType::KwMatch: return "match";
+        case TokenType::KwTrait: return "trait";
+        case TokenType::KwImpl: return "impl";
+        case TokenType::KwFor: return "for";
+        case TokenType::KwSelfValue: return "self";
         case TokenType::KwExtern: return "extern";
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
@@ -234,6 +238,10 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "struct") return Token{TokenType::KwStruct, text, 0, false, loc};
     if (text == "enum") return Token{TokenType::KwEnum, text, 0, false, loc};
     if (text == "match") return Token{TokenType::KwMatch, text, 0, false, loc};
+    if (text == "trait") return Token{TokenType::KwTrait, text, 0, false, loc};
+    if (text == "impl") return Token{TokenType::KwImpl, text, 0, false, loc};
+    if (text == "for") return Token{TokenType::KwFor, text, 0, false, loc};
+    if (text == "self") return Token{TokenType::KwSelfValue, text, 0, false, loc};
     if (text == "extern") return Token{TokenType::KwExtern, text, 0, false, loc};
     if (text == "_") return Token{TokenType::Underscore, text, 0, false, loc};
     if (text == "true") return Token{TokenType::LiteralBool, text, 0, true, loc};

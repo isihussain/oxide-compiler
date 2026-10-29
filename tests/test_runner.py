@@ -27,6 +27,7 @@ def run():
         ("examples/09_aerospace_profile.rs", 42, ["--profile=aerospace"]),
         ("examples/10_tagged_union_enums.rs", 42, []),
         ("examples/11_generics_monomorphization.rs", 42, []),
+        ("examples/12_traits_and_impl.rs", 42, []),
     ]
 
     passed = 0
@@ -66,11 +67,16 @@ def run():
         ("tests/ui/fail_extern_arity_mismatch.rs", "takes 1 arguments but 2 were supplied", []),
         ("tests/ui/fail_aerospace_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
         ("tests/ui/fail_aerospace_mutual_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
+        ("tests/ui/fail_aerospace_method_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
         ("tests/ui/fail_match_non_exhaustive.rs", "non-exhaustive patterns: variant 'Blue' not covered", []),
         ("tests/ui/fail_match_arm_type_mismatch.rs", "match arms have incompatible types", []),
         ("tests/ui/fail_enum_payload_mismatch.rs", "mismatched payload type for variant", []),
         ("tests/ui/fail_generic_type_mismatch.rs", "mismatched type in argument 2", []),
         ("tests/ui/fail_generic_struct_field_mismatch.rs", "mismatched type for field 'second'", []),
+        ("tests/ui/fail_missing_trait_method.rs", "missing items in 'impl Area for Rectangle': method 'area' not implemented", []),
+        ("tests/ui/fail_trait_signature_mismatch.rs", "method 'area' has an incompatible return type", []),
+        ("tests/ui/fail_method_not_found.rs", "no method named 'non_existent' found for type 'Point'", []),
+        ("tests/ui/fail_immutable_method_call.rs", "cannot borrow immutable local variable 'p' as mutable in method call", []),
     ]
 
     for item in negative_tests:

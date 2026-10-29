@@ -131,6 +131,23 @@ std::unique_ptr<Expression> Monomorphizer::clone_expr(const Expression& expr, co
         return res;
     }
 
+    if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        auto recv = clone_expr(*mc->receiver, subst);
+        std::vector<std::unique_ptr<Expression>> args;
+        for (const auto& a : mc->arguments) {
+            args.push_back(clone_expr(*a, subst));
+        }
+        std::vector<Type> t_args;
+        for (const auto& ta : mc->type_args) {
+            t_args.push_back(substitute_type(ta, subst));
+        }
+        auto res = std::make_unique<MethodCallExpr>(std::move(recv), mc->method_name, std::move(args), mc->location, std::move(t_args));
+        res->resolved_self_kind = mc->resolved_self_kind;
+        res->resolved_callee = mc->resolved_callee;
+        res->evaluated_type = substitute_type(mc->evaluated_type, subst);
+        return res;
+    }
+
     if (auto* ev = dynamic_cast<const EnumVariantExpr*>(&expr)) {
         auto payload = ev->payload ? clone_expr(*ev->payload, subst) : nullptr;
         auto res = std::make_unique<EnumVariantExpr>(ev->enum_name, ev->variant_name, std::move(payload), ev->location);
@@ -339,6 +356,15 @@ void Monomorphizer::transform_expr(Expression& expr) {
         return;
     }
 
+    if (auto* mc = dynamic_cast<MethodCallExpr*>(&expr)) {
+        transform_type(mc->evaluated_type);
+        transform_expr(*mc->receiver);
+        for (auto& a : mc->arguments) {
+            transform_expr(*a);
+        }
+        return;
+    }
+
     if (auto* ev = dynamic_cast<EnumVariantExpr*>(&expr)) {
         if (ev->payload) {
             transform_expr(*ev->payload);
@@ -393,6 +419,19 @@ void Monomorphizer::run() {
             }
             if (fn->body) {
                 transform_block(*fn->body);
+            }
+        }
+    }
+    for (auto& ib : program_.impl_blocks) {
+        for (auto& fn : ib->methods) {
+            if (!fn->is_generic()) {
+                transform_type(fn->return_type);
+                for (auto& p : fn->parameters) {
+                    transform_type(p.type);
+                }
+                if (fn->body) {
+                    transform_block(*fn->body);
+                }
             }
         }
     }
