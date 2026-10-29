@@ -222,8 +222,6 @@ Results: 56/56 tests passed.
 Support Oxide development:
 
 - [GitHub Sponsors](https://github.com/sponsors/isihussain)
-- [Buy Me a Coffee ($1)](https://buymeacoffee.com/isihussain)
-- [Ko-fi ($1)](https://ko-fi.com/isihussain)
 
 ## License
 
