@@ -63,6 +63,25 @@ void TypeChecker::register_structs() {
     }
 }
 
+void TypeChecker::register_enums() {
+    for (const auto& e : program_.enums) {
+        if (enum_table_.find(e->name) != enum_table_.end() || struct_table_.find(e->name) != struct_table_.end()) {
+            emit_error(e->location, "duplicate type definition: '" + e->name + "'");
+            continue;
+        }
+        EnumSignature sig;
+        sig.name = e->name;
+        sig.location = e->location;
+        for (const auto& v : e->variants) {
+            if (sig.variants.find(v.name) != sig.variants.end()) {
+                emit_error(v.location, "duplicate variant '" + v.name + "' in enum '" + e->name + "'");
+            }
+            sig.variants[v.name] = EnumVariantSignature{v.name, v.payload_type, v.tag, v.location};
+        }
+        enum_table_[e->name] = std::move(sig);
+    }
+}
+
 void TypeChecker::register_functions() {
     for (const auto& eb : program_.extern_blocks) {
         for (const auto& decl : eb->declarations) {
@@ -93,6 +112,7 @@ void TypeChecker::register_functions() {
 
 bool TypeChecker::check() {
     register_structs();
+    register_enums();
     register_functions();
     for (auto& fn : program_.functions) {
         check_function(*fn);
@@ -402,6 +422,116 @@ Type TypeChecker::check_expression(Expression& expr) {
         }
         fa->evaluated_type = field_it->second;
         return fa->evaluated_type;
+    }
+
+    if (auto* ev = dynamic_cast<EnumVariantExpr*>(&expr)) {
+        auto it = enum_table_.find(ev->enum_name);
+        if (it == enum_table_.end()) {
+            emit_error(ev->location, "cannot find enum '" + ev->enum_name + "' in this scope");
+            ev->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return ev->evaluated_type;
+        }
+        const auto& sig = it->second;
+        auto var_it = sig.variants.find(ev->variant_name);
+        if (var_it == sig.variants.end()) {
+            emit_error(ev->location, "enum '" + ev->enum_name + "' has no variant named '" + ev->variant_name + "'");
+            ev->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return ev->evaluated_type;
+        }
+        const auto& var_sig = var_it->second;
+        if (var_sig.payload_type.has_value()) {
+            if (!ev->payload) {
+                emit_error(ev->location, "variant '" + ev->enum_name + "::" + ev->variant_name + "' requires a payload of type '" +
+                           var_sig.payload_type->to_string() + "'");
+            } else {
+                Type payload_t = check_expression(*ev->payload);
+                if (!(payload_t == *var_sig.payload_type)) {
+                    emit_error(ev->location, "mismatched payload type for variant '" + ev->enum_name + "::" + ev->variant_name +
+                               "': expected '" + var_sig.payload_type->to_string() + "', found '" + payload_t.to_string() + "'");
+                }
+            }
+        } else {
+            if (ev->payload) {
+                emit_error(ev->location, "variant '" + ev->enum_name + "::" + ev->variant_name + "' does not take a payload");
+                check_expression(*ev->payload);
+            }
+        }
+        ev->evaluated_type = Type{BaseTypeKind::Named, ev->enum_name, false, false};
+        return ev->evaluated_type;
+    }
+
+    if (auto* match_expr = dynamic_cast<MatchExpr*>(&expr)) {
+        Type target_t = check_expression(*match_expr->target);
+        if (target_t.kind != BaseTypeKind::Named) {
+            emit_error(match_expr->location, "cannot match on non-enum type '" + target_t.to_string() + "'");
+            match_expr->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return match_expr->evaluated_type;
+        }
+        auto it = enum_table_.find(target_t.name);
+        if (it == enum_table_.end()) {
+            emit_error(match_expr->location, "cannot match on unknown enum '" + target_t.name + "'");
+            match_expr->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+            return match_expr->evaluated_type;
+        }
+        const auto& enum_sig = it->second;
+        std::set<std::string> covered_variants;
+        bool has_wildcard = false;
+        std::optional<Type> expected_arm_type;
+
+        for (auto& arm : match_expr->arms) {
+            enter_scope();
+            if (arm.pattern.kind == PatternKind::Wildcard) {
+                has_wildcard = true;
+            } else {
+                if (arm.pattern.enum_name != enum_sig.name) {
+                    emit_error(arm.pattern.location, "mismatched enum in pattern: expected '" + enum_sig.name +
+                               "', found '" + arm.pattern.enum_name + "'");
+                }
+                auto var_it = enum_sig.variants.find(arm.pattern.variant_name);
+                if (var_it == enum_sig.variants.end()) {
+                    emit_error(arm.pattern.location, "enum '" + enum_sig.name + "' has no variant named '" +
+                               arm.pattern.variant_name + "'");
+                } else {
+                    const auto& var_sig = var_it->second;
+                    if (var_sig.payload_type.has_value()) {
+                        if (arm.pattern.binding_name.empty()) {
+                            emit_error(arm.pattern.location, "pattern for variant '" + arm.pattern.variant_name +
+                                       "' must bind payload variable");
+                        } else {
+                            declare_variable(arm.pattern.binding_name, *var_sig.payload_type, false, arm.pattern.location);
+                        }
+                    } else {
+                        if (!arm.pattern.binding_name.empty()) {
+                            emit_error(arm.pattern.location, "variant '" + arm.pattern.variant_name +
+                                       "' has no payload to bind");
+                        }
+                    }
+                    covered_variants.insert(arm.pattern.variant_name);
+                }
+            }
+
+            Type arm_t = check_expression(*arm.body);
+            exit_scope();
+
+            if (!expected_arm_type.has_value()) {
+                expected_arm_type = arm_t;
+            } else if (!(*expected_arm_type == arm_t)) {
+                emit_error(arm.location, "match arms have incompatible types: expected '" +
+                           expected_arm_type->to_string() + "', found '" + arm_t.to_string() + "'");
+            }
+        }
+
+        // Exhaustiveness check
+        if (!has_wildcard) {
+            for (const auto& [vname, _] : enum_sig.variants) {
+                if (covered_variants.find(vname) == covered_variants.end()) {
+                    emit_error(match_expr->location, "non-exhaustive patterns: variant '" + vname + "' not covered");
+                }
+            }
+        }
+
+        match_expr->evaluated_type = expected_arm_type.value_or(Type{BaseTypeKind::Unit, "", false, false});
+        return match_expr->evaluated_type;
     }
 
     return Type{BaseTypeKind::Unit, "", false, false};

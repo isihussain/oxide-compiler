@@ -221,6 +221,26 @@ void BorrowChecker::check_expression(Expression& expr) {
         check_expression(*fa->target);
         return;
     }
+
+    if (auto* ev = dynamic_cast<EnumVariantExpr*>(&expr)) {
+        if (ev->payload) {
+            check_expression(*ev->payload);
+        }
+        return;
+    }
+
+    if (auto* match_expr = dynamic_cast<MatchExpr*>(&expr)) {
+        check_expression(*match_expr->target);
+        for (auto& arm : match_expr->arms) {
+            enter_scope();
+            if (!arm.pattern.binding_name.empty()) {
+                declare_variable(arm.pattern.binding_name, false, true, arm.pattern.location);
+            }
+            check_expression(*arm.body);
+            exit_scope();
+        }
+        return;
+    }
 }
 
 } // namespace oxide

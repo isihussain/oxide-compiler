@@ -2,6 +2,7 @@
 
 #include "token.hpp"
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -173,6 +174,44 @@ struct FieldAccessExpr : public Expression {
     void dump(int indent = 0) const override;
 };
 
+struct EnumVariantExpr : public Expression {
+    std::string enum_name;
+    std::string variant_name;
+    std::unique_ptr<Expression> payload; // nullptr if unit variant
+
+    EnumVariantExpr(std::string e_name, std::string v_name, std::unique_ptr<Expression> p, SourceLocation loc)
+        : enum_name(std::move(e_name)), variant_name(std::move(v_name)), payload(std::move(p)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+enum class PatternKind {
+    Variant,
+    Wildcard,
+};
+
+struct MatchPattern {
+    PatternKind kind = PatternKind::Wildcard;
+    std::string enum_name;
+    std::string variant_name;
+    std::string binding_name;
+    SourceLocation location;
+};
+
+struct MatchArm {
+    MatchPattern pattern;
+    std::unique_ptr<Expression> body;
+    SourceLocation location;
+};
+
+struct MatchExpr : public Expression {
+    std::unique_ptr<Expression> target;
+    std::vector<MatchArm> arms;
+
+    MatchExpr(std::unique_ptr<Expression> tgt, std::vector<MatchArm> arm_list, SourceLocation loc)
+        : target(std::move(tgt)), arms(std::move(arm_list)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
 struct Statement : public ASTNode {
     virtual void dump(int indent = 0) const = 0;
 };
@@ -259,9 +298,27 @@ struct StructDef : public ASTNode {
     void dump(int indent = 0) const;
 };
 
+struct EnumVariant {
+    std::string name;
+    std::optional<Type> payload_type;
+    int tag = 0;
+    SourceLocation location;
+};
+
+struct EnumDef : public ASTNode {
+    std::string name;
+    std::vector<EnumVariant> variants;
+
+    EnumDef(std::string name, std::vector<EnumVariant> vars, SourceLocation loc)
+        : name(std::move(name)), variants(std::move(vars)) { location = loc; }
+
+    void dump(int indent = 0) const;
+};
+
 struct Program : public ASTNode {
     std::vector<std::unique_ptr<ExternBlock>> extern_blocks;
     std::vector<std::unique_ptr<StructDef>> structs;
+    std::vector<std::unique_ptr<EnumDef>> enums;
     std::vector<std::unique_ptr<Function>> functions;
 
     void dump() const;

@@ -114,6 +114,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 07_mutable_reference.rs (exit code: 42)
 [PASS] 08_extern_c_abi.rs (exit code: 42)
 [PASS] 09_aerospace_profile.rs (exit code: 42)
+[PASS] 10_tagged_union_enums.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -127,8 +128,11 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_extern_arity_mismatch.rs (correctly rejected)
 [PASS] fail_aerospace_recursion.rs (correctly rejected)
 [PASS] fail_aerospace_mutual_recursion.rs (correctly rejected)
+[PASS] fail_match_non_exhaustive.rs (correctly rejected)
+[PASS] fail_match_arm_type_mismatch.rs (correctly rejected)
+[PASS] fail_enum_payload_mismatch.rs (correctly rejected)
 ==================================================
-Results: 22/22 tests passed.
+Results: 26/26 tests passed.
 ```
 
 ---
@@ -142,14 +146,14 @@ Results: 22/22 tests passed.
   - [x] Control flow (`if` / `else`)
   - [x] Mutability enforcement and initialization checking
   - [x] C99 code generator
-- [ ] **Milestone 2: Structs, Enums, and Interop**
+- [x] **Milestone 2: Structs, Enums, and Interop**
   - [x] Compound struct declarations
   - [x] Struct literal instantiations and field access expressions
   - [x] Mutable place expressions (l-values: `point.x = val`, `*ptr = val`)
   - [x] `while` loop control structures
   - [x] Foreign Function Interface (`extern "C"` declaration blocks)
-  - [ ] Tagged union enums with payload support
-  - [ ] `match` pattern exhaustiveness checking
+  - [x] Tagged union enums with payload support
+  - [x] `match` pattern exhaustiveness checking
 - [ ] **Milestone 3: Generics and Traits**
   - [ ] Parametric polymorphism (generics on functions and structs)
   - [ ] Trait definitions and `impl` blocks

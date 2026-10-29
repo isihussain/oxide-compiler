@@ -25,6 +25,7 @@ def run():
         ("examples/07_mutable_reference.rs", 42, []),
         ("examples/08_extern_c_abi.rs", 42, []),
         ("examples/09_aerospace_profile.rs", 42, ["--profile=aerospace"]),
+        ("examples/10_tagged_union_enums.rs", 42, []),
     ]
 
     passed = 0
@@ -64,6 +65,9 @@ def run():
         ("tests/ui/fail_extern_arity_mismatch.rs", "takes 1 arguments but 2 were supplied", []),
         ("tests/ui/fail_aerospace_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
         ("tests/ui/fail_aerospace_mutual_recursion.rs", "recursion detected along call chain", ["--profile=aerospace"]),
+        ("tests/ui/fail_match_non_exhaustive.rs", "non-exhaustive patterns: variant 'Blue' not covered", []),
+        ("tests/ui/fail_match_arm_type_mismatch.rs", "match arms have incompatible types", []),
+        ("tests/ui/fail_enum_payload_mismatch.rs", "mismatched payload type for variant", []),
     ]
 
     for item in negative_tests:

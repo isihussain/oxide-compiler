@@ -22,6 +22,19 @@ struct StructSignature {
     SourceLocation location;
 };
 
+struct EnumVariantSignature {
+    std::string name;
+    std::optional<Type> payload_type;
+    int tag = 0;
+    SourceLocation location;
+};
+
+struct EnumSignature {
+    std::string name;
+    std::map<std::string, EnumVariantSignature> variants;
+    SourceLocation location;
+};
+
 class TypeChecker {
 public:
     explicit TypeChecker(Program& program);
@@ -30,6 +43,7 @@ public:
 
 private:
     void register_structs();
+    void register_enums();
     void register_functions();
     void check_function(Function& func);
     void check_block(BlockExpr& block, const Type& expected_return_type, bool is_function_root);
@@ -45,6 +59,7 @@ private:
 
     Program& program_;
     std::map<std::string, StructSignature> struct_table_;
+    std::map<std::string, EnumSignature> enum_table_;
     std::map<std::string, FunctionSignature> function_table_;
     std::vector<std::map<std::string, std::pair<Type, bool>>> scopes_; // name -> (Type, is_mut)
     std::vector<std::string> errors_;

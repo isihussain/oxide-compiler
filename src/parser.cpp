@@ -62,6 +62,8 @@ std::unique_ptr<Program> Parser::parse_program() {
             program->functions.push_back(parse_function());
         } else if (check(TokenType::KwStruct)) {
             program->structs.push_back(parse_struct_definition());
+        } else if (check(TokenType::KwEnum)) {
+            program->enums.push_back(parse_enum_definition());
         } else if (check(TokenType::KwExtern)) {
             if (cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::LBrace) {
                 program->extern_blocks.push_back(parse_extern_block());
@@ -106,6 +108,31 @@ std::unique_ptr<StructDef> Parser::parse_struct_definition() {
     }
     consume(TokenType::RBrace, "Expected '}' to close struct definition");
     return std::make_unique<StructDef>(name, std::move(fields), loc);
+}
+
+std::unique_ptr<EnumDef> Parser::parse_enum_definition() {
+    SourceLocation loc = consume(TokenType::KwEnum, "Expected 'enum'").location;
+    std::string name = consume(TokenType::Identifier, "Expected enum name").text;
+
+    consume(TokenType::LBrace, "Expected '{' after enum name");
+    std::vector<EnumVariant> variants;
+    int current_tag = 0;
+
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        const Token& var_tok = consume(TokenType::Identifier, "Expected variant name");
+        std::optional<Type> payload_type;
+        if (match(TokenType::LParen)) {
+            payload_type = parse_type();
+            consume(TokenType::RParen, "Expected ')' after payload type");
+        }
+        variants.push_back(EnumVariant{var_tok.text, payload_type, current_tag++, var_tok.location});
+        if (!match(TokenType::Comma)) {
+            break;
+        }
+    }
+
+    consume(TokenType::RBrace, "Expected '}' after enum variants");
+    return std::make_unique<EnumDef>(name, std::move(variants), loc);
 }
 
 std::unique_ptr<ExternBlock> Parser::parse_extern_block() {
@@ -392,8 +419,22 @@ std::unique_ptr<Expression> Parser::parse_primary() {
         return parse_return_expression();
     }
 
+    if (match(TokenType::KwMatch)) {
+        return parse_match_expression();
+    }
+
     if (match(TokenType::Identifier)) {
         std::string name = previous().text;
+        // Enum variant constructor: Name::Variant or Name::Variant(arg)
+        if (match(TokenType::ColonColon)) {
+            const Token& var_tok = consume(TokenType::Identifier, "Expected variant name after '::'");
+            std::unique_ptr<Expression> payload = nullptr;
+            if (match(TokenType::LParen)) {
+                payload = parse_expression();
+                consume(TokenType::RParen, "Expected ')' after variant payload");
+            }
+            return std::make_unique<EnumVariantExpr>(name, var_tok.text, std::move(payload), loc);
+        }
         // Function call: ident(...)
         if (match(TokenType::LParen)) {
             std::vector<std::unique_ptr<Expression>> args;
@@ -475,6 +516,51 @@ std::unique_ptr<ReturnExpr> Parser::parse_return_expression() {
         val = parse_expression();
     }
     return std::make_unique<ReturnExpr>(std::move(val), loc);
+}
+
+std::unique_ptr<MatchExpr> Parser::parse_match_expression() {
+    SourceLocation loc = previous().location;
+    auto target = parse_expression();
+    consume(TokenType::LBrace, "Expected '{' after match target expression");
+
+    std::vector<MatchArm> arms;
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        SourceLocation arm_loc = peek().location;
+        MatchPattern pat;
+        pat.location = arm_loc;
+
+        if (match(TokenType::Underscore)) {
+            pat.kind = PatternKind::Wildcard;
+        } else {
+            const Token& enum_tok = consume(TokenType::Identifier, "Expected enum name or '_' in match pattern");
+            consume(TokenType::ColonColon, "Expected '::' after enum name in match pattern");
+            const Token& var_tok = consume(TokenType::Identifier, "Expected variant name in match pattern");
+            pat.kind = PatternKind::Variant;
+            pat.enum_name = enum_tok.text;
+            pat.variant_name = var_tok.text;
+            if (match(TokenType::LParen)) {
+                const Token& bind_tok = consume(TokenType::Identifier, "Expected variable name to bind variant payload");
+                pat.binding_name = bind_tok.text;
+                consume(TokenType::RParen, "Expected ')' after binding name");
+            }
+        }
+
+        consume(TokenType::FatArrow, "Expected '=>' after match pattern");
+
+        std::unique_ptr<Expression> body;
+        if (check(TokenType::LBrace)) {
+            body = parse_block();
+            match(TokenType::Comma);
+        } else {
+            body = parse_expression();
+            match(TokenType::Comma);
+        }
+
+        arms.push_back(MatchArm{pat, std::move(body), arm_loc});
+    }
+
+    consume(TokenType::RBrace, "Expected '}' to close match expression");
+    return std::make_unique<MatchExpr>(std::move(target), std::move(arms), loc);
 }
 
 } // namespace oxide

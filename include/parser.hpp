@@ -24,6 +24,7 @@ private:
 
     std::unique_ptr<Function> parse_function();
     std::unique_ptr<StructDef> parse_struct_definition();
+    std::unique_ptr<EnumDef> parse_enum_definition();
     std::unique_ptr<ExternBlock> parse_extern_block();
     Parameter parse_parameter();
     Type parse_type();
@@ -43,6 +44,7 @@ private:
     std::unique_ptr<IfExpr> parse_if_expression();
     std::unique_ptr<WhileExpr> parse_while_expression();
     std::unique_ptr<ReturnExpr> parse_return_expression();
+    std::unique_ptr<MatchExpr> parse_match_expression();
 
     std::vector<Token> tokens_;
     size_t cursor_ = 0;

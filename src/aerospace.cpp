@@ -76,6 +76,21 @@ void AerospaceVerifier::collect_calls_from_expr(const std::string& caller, const
         collect_calls_from_expr(caller, *fa->target);
         return;
     }
+
+    if (auto* ev = dynamic_cast<const EnumVariantExpr*>(&expr)) {
+        if (ev->payload) {
+            collect_calls_from_expr(caller, *ev->payload);
+        }
+        return;
+    }
+
+    if (auto* match_expr = dynamic_cast<const MatchExpr*>(&expr)) {
+        collect_calls_from_expr(caller, *match_expr->target);
+        for (const auto& arm : match_expr->arms) {
+            collect_calls_from_expr(caller, *arm.body);
+        }
+        return;
+    }
 }
 
 void AerospaceVerifier::collect_calls_from_block(const std::string& caller, const BlockExpr& block) {

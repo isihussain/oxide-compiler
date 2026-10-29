@@ -18,6 +18,8 @@ const char* token_type_name(TokenType type) {
         case TokenType::KwWhile: return "while";
         case TokenType::KwReturn: return "return";
         case TokenType::KwStruct: return "struct";
+        case TokenType::KwEnum: return "enum";
+        case TokenType::KwMatch: return "match";
         case TokenType::KwExtern: return "extern";
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
@@ -27,6 +29,7 @@ const char* token_type_name(TokenType type) {
         case TokenType::LiteralBool: return "Boolean";
         case TokenType::LiteralString: return "String";
         case TokenType::Identifier: return "Identifier";
+        case TokenType::Underscore: return "_";
         case TokenType::Plus: return "+";
         case TokenType::Minus: return "-";
         case TokenType::Star: return "*";
@@ -42,8 +45,10 @@ const char* token_type_name(TokenType type) {
         case TokenType::Amp: return "&";
         case TokenType::Exclamation: return "!";
         case TokenType::Arrow: return "->";
+        case TokenType::FatArrow: return "=>";
         case TokenType::Comma: return ",";
         case TokenType::Colon: return ":";
+        case TokenType::ColonColon: return "::";
         case TokenType::Semicolon: return ";";
         case TokenType::LParen: return "(";
         case TokenType::RParen: return ")";
@@ -168,6 +173,9 @@ Token Lexer::scan_token() {
             if (match('=')) {
                 return Token{TokenType::EqEq, "==", 0, false, loc};
             }
+            if (match('>')) {
+                return Token{TokenType::FatArrow, "=>", 0, false, loc};
+            }
             return Token{TokenType::Eq, "=", 0, false, loc};
         }
         case '!': {
@@ -190,7 +198,12 @@ Token Lexer::scan_token() {
         }
         case '&': return Token{TokenType::Amp, "&", 0, false, loc};
         case ',': return Token{TokenType::Comma, ",", 0, false, loc};
-        case ':': return Token{TokenType::Colon, ":", 0, false, loc};
+        case ':': {
+            if (match(':')) {
+                return Token{TokenType::ColonColon, "::", 0, false, loc};
+            }
+            return Token{TokenType::Colon, ":", 0, false, loc};
+        }
         case ';': return Token{TokenType::Semicolon, ";", 0, false, loc};
         case '(': return Token{TokenType::LParen, "(", 0, false, loc};
         case ')': return Token{TokenType::RParen, ")", 0, false, loc};
@@ -219,7 +232,10 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "while") return Token{TokenType::KwWhile, text, 0, false, loc};
     if (text == "return") return Token{TokenType::KwReturn, text, 0, false, loc};
     if (text == "struct") return Token{TokenType::KwStruct, text, 0, false, loc};
+    if (text == "enum") return Token{TokenType::KwEnum, text, 0, false, loc};
+    if (text == "match") return Token{TokenType::KwMatch, text, 0, false, loc};
     if (text == "extern") return Token{TokenType::KwExtern, text, 0, false, loc};
+    if (text == "_") return Token{TokenType::Underscore, text, 0, false, loc};
     if (text == "true") return Token{TokenType::LiteralBool, text, 0, true, loc};
     if (text == "false") return Token{TokenType::LiteralBool, text, 0, false, loc};
     if (text == "i32") return Token{TokenType::TypeI32, text, 0, false, loc};

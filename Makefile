@@ -1,5 +1,5 @@
 CXX ?= clang++
-CXXFLAGS ?= -std=c++20 -Wall -Wextra -pedantic -O2 -Iinclude
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -pedantic -O2 -Iinclude -MMD -MP
 SRC_DIR = src
 INC_DIR = include
 BUILD_DIR = build
@@ -15,6 +15,7 @@ SRCS = $(SRC_DIR)/lexer.cpp \
        $(SRC_DIR)/main.cpp
 
 OBJS = $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SRCS))
+DEPS = $(OBJS:.o=.d)
 TARGET = $(BIN_DIR)/oxide
 
 .PHONY: all clean test
@@ -26,6 +27,8 @@ $(TARGET): $(OBJS) | $(BIN_DIR)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+-include $(DEPS)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)

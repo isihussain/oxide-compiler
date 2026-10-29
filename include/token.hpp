@@ -20,6 +20,8 @@ enum class TokenType {
     KwWhile,
     KwReturn,
     KwStruct,
+    KwEnum,
+    KwMatch,
     KwExtern,
     KwTrue,
     KwFalse,
@@ -35,6 +37,7 @@ enum class TokenType {
 
     // Identifiers
     Identifier,
+    Underscore,    // _
 
     // Operators & Delimiters
     Plus,          // +
@@ -52,8 +55,10 @@ enum class TokenType {
     Amp,           // &
     Exclamation,   // !
     Arrow,         // ->
-    Comma,         // ,
+    FatArrow,      // =>
     Colon,         // :
+    ColonColon,    // ::
+    Comma,         // ,
     Semicolon,     // ;
     LParen,        // (
     RParen,        // )

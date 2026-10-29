@@ -145,6 +145,37 @@ void FieldAccessExpr::dump(int indent) const {
     if (target) target->dump(indent + 1);
 }
 
+void EnumVariantExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "EnumVariantExpr(" << enum_name << "::" << variant_name << ") : " << evaluated_type.to_string() << "\n";
+    if (payload) {
+        payload->dump(indent + 1);
+    }
+}
+
+void MatchExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "MatchExpr : " << evaluated_type.to_string() << "\n";
+    print_indent(indent + 1);
+    std::cout << "Target:\n";
+    if (target) target->dump(indent + 2);
+    print_indent(indent + 1);
+    std::cout << "Arms:\n";
+    for (const auto& arm : arms) {
+        print_indent(indent + 2);
+        if (arm.pattern.kind == PatternKind::Wildcard) {
+            std::cout << "_ =>\n";
+        } else {
+            std::cout << arm.pattern.enum_name << "::" << arm.pattern.variant_name;
+            if (!arm.pattern.binding_name.empty()) {
+                std::cout << "(" << arm.pattern.binding_name << ")";
+            }
+            std::cout << " =>\n";
+        }
+        if (arm.body) arm.body->dump(indent + 3);
+    }
+}
+
 void LetStmt::dump(int indent) const {
     print_indent(indent);
     std::cout << "LetStmt(" << (is_mutable ? "mut " : "") << var_name << " : "
@@ -219,6 +250,21 @@ void Function::dump(int indent) const {
     }
 }
 
+void EnumDef::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "Enum " << name << " {\n";
+    for (const auto& var : variants) {
+        print_indent(indent + 1);
+        std::cout << var.name;
+        if (var.payload_type.has_value()) {
+            std::cout << "(" << var.payload_type->to_string() << ")";
+        }
+        std::cout << " = " << var.tag << ",\n";
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
 void Program::dump() const {
     std::cout << "Program {\n";
     for (const auto& eb : extern_blocks) {
@@ -226,6 +272,9 @@ void Program::dump() const {
     }
     for (const auto& s : structs) {
         s->dump(1);
+    }
+    for (const auto& e : enums) {
+        e->dump(1);
     }
     for (const auto& fn : functions) {
         fn->dump(1);

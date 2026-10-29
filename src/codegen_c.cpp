@@ -46,6 +46,8 @@ std::string CCodeGenerator::generate() {
         emit_aerospace_traps();
     }
     emit_struct_declarations();
+    emit_enum_declarations();
+    emit_enum_constructors();
     emit_forward_declarations();
 
     for (const auto& fn : program_.functions) {
@@ -113,6 +115,73 @@ void CCodeGenerator::emit_struct_declarations() {
         indent_level_--;
         line("} " + s->name + ";");
         line();
+    }
+}
+
+void CCodeGenerator::emit_enum_declarations() {
+    for (const auto& e : program_.enums) {
+        // Tag enum
+        line("typedef enum {");
+        indent_level_++;
+        for (const auto& v : e->variants) {
+            line(e->name + "_Tag_" + v.name + " = " + std::to_string(v.tag) + ",");
+        }
+        indent_level_--;
+        line("} " + e->name + "_Tag;");
+        line();
+
+        // Tagged union struct
+        line("typedef struct {");
+        indent_level_++;
+        line("int tag;");
+        bool has_payload = false;
+        for (const auto& v : e->variants) {
+            if (v.payload_type.has_value()) {
+                has_payload = true;
+                break;
+            }
+        }
+        if (has_payload) {
+            line("union {");
+            indent_level_++;
+            for (const auto& v : e->variants) {
+                if (v.payload_type.has_value()) {
+                    line(map_type(*v.payload_type) + " " + v.name + ";");
+                }
+            }
+            indent_level_--;
+            line("} data;");
+        }
+        indent_level_--;
+        line("} " + e->name + ";");
+        line();
+    }
+}
+
+void CCodeGenerator::emit_enum_constructors() {
+    for (const auto& e : program_.enums) {
+        for (const auto& v : e->variants) {
+            if (v.payload_type.has_value()) {
+                line("static inline " + e->name + " " + e->name + "_" + v.name + "(" + map_type(*v.payload_type) + " val) {");
+                indent_level_++;
+                line(e->name + " _res;");
+                line("_res.tag = " + e->name + "_Tag_" + v.name + ";");
+                line("_res.data." + v.name + " = val;");
+                line("return _res;");
+                indent_level_--;
+                line("}");
+                line();
+            } else {
+                line("static inline " + e->name + " " + e->name + "_" + v.name + "(void) {");
+                indent_level_++;
+                line(e->name + " _res;");
+                line("_res.tag = " + e->name + "_Tag_" + v.name + ";");
+                line("return _res;");
+                indent_level_--;
+                line("}");
+                line();
+            }
+        }
     }
 }
 
@@ -311,6 +380,108 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         emit_expression(*while_expr->condition);
         out_ << ") ";
         emit_block(*while_expr->body, false);
+    } else if (auto* ev = dynamic_cast<const EnumVariantExpr*>(&expr)) {
+        out_ << ev->enum_name << "_" << ev->variant_name << "(";
+        if (ev->payload) {
+            emit_expression(*ev->payload);
+        }
+        out_ << ")";
+    } else if (auto* match_expr = dynamic_cast<const MatchExpr*>(&expr)) {
+        int mid = match_counter_++;
+        std::string target_var = "_match_tgt_" + std::to_string(mid);
+        std::string res_var = "_match_res_" + std::to_string(mid);
+        bool has_res = (match_expr->evaluated_type.kind != BaseTypeKind::Unit);
+
+        out_ << "({\n";
+        indent_level_++;
+
+        indent();
+        out_ << map_type(match_expr->target->evaluated_type) << " " << target_var << " = ";
+        emit_expression(*match_expr->target);
+        out_ << ";\n";
+
+        if (has_res) {
+            indent();
+            out_ << map_type(match_expr->evaluated_type) << " " << res_var << ";\n";
+        }
+
+        indent();
+        out_ << "switch (" << target_var << ".tag) {\n";
+        indent_level_++;
+
+        for (const auto& arm : match_expr->arms) {
+            indent();
+            if (arm.pattern.kind == PatternKind::Wildcard) {
+                out_ << "default: {\n";
+            } else {
+                out_ << "case " << arm.pattern.enum_name << "_Tag_" << arm.pattern.variant_name << ": {\n";
+            }
+            indent_level_++;
+
+            if (arm.pattern.kind == PatternKind::Variant && !arm.pattern.binding_name.empty()) {
+                std::string payload_type_str = "";
+                for (const auto& e : program_.enums) {
+                    if (e->name == arm.pattern.enum_name) {
+                        for (const auto& v : e->variants) {
+                            if (v.name == arm.pattern.variant_name && v.payload_type.has_value()) {
+                                payload_type_str = map_type(*v.payload_type);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (!payload_type_str.empty()) {
+                    indent();
+                    out_ << payload_type_str << " " << arm.pattern.binding_name
+                         << " = " << target_var << ".data." << arm.pattern.variant_name << ";\n";
+                }
+            }
+
+            emit_match_arm_body(*arm.body, res_var, has_res);
+            indent();
+            out_ << "break;\n";
+
+            indent_level_--;
+            indent();
+            out_ << "}\n";
+        }
+
+        indent_level_--;
+        indent();
+        out_ << "}\n";
+
+        if (has_res) {
+            indent();
+            out_ << res_var << ";\n";
+        }
+
+        indent_level_--;
+        indent();
+        out_ << "})";
+    }
+}
+
+void CCodeGenerator::emit_match_arm_body(const Expression& body, const std::string& res_var, bool has_res) {
+    if (auto* block = dynamic_cast<const BlockExpr*>(&body)) {
+        for (const auto& stmt : block->statements) {
+            emit_statement(*stmt);
+        }
+        if (block->trailing_expr) {
+            indent();
+            if (has_res) {
+                out_ << res_var << " = ";
+            }
+            emit_expression(*block->trailing_expr);
+            out_ << ";\n";
+        }
+    } else {
+        indent();
+        if (has_res) {
+            out_ << res_var << " = ";
+        }
+        emit_expression(body);
+        out_ << ";\n";
     }
 }
 
