@@ -132,6 +132,15 @@ struct IfExpr : public Expression {
     void dump(int indent = 0) const override;
 };
 
+struct WhileExpr : public Expression {
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<BlockExpr> body;
+
+    WhileExpr(std::unique_ptr<Expression> cond, std::unique_ptr<BlockExpr> b, SourceLocation loc)
+        : condition(std::move(cond)), body(std::move(b)) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
 struct ReturnExpr : public Expression {
     std::unique_ptr<Expression> value; // Can be nullptr for unit return
 

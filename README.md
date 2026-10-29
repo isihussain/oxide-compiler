@@ -101,14 +101,16 @@ Running Oxide Conformance Test Suite...
 [PASS] 02_control_flow.rs (exit code: 42)
 [PASS] 03_mutability.rs (exit code: 10)
 [PASS] 04_structs.rs (exit code: 42)
+[PASS] 05_while_loop.rs (exit code: 55)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
 [PASS] fail_struct_unknown_field.rs (correctly rejected)
 [PASS] fail_struct_missing_field.rs (correctly rejected)
 [PASS] fail_struct_invalid_field_access.rs (correctly rejected)
+[PASS] fail_while_non_bool_condition.rs (correctly rejected)
 ==================================================
-Results: 10/10 tests passed.
+Results: 12/12 tests passed.
 ```
 
 ---
@@ -125,6 +127,7 @@ Results: 10/10 tests passed.
 - [ ] **Milestone 2: Structs, Enums, and Pattern Matching**
   - [x] Compound struct declarations
   - [x] Struct literal instantiations and field access expressions
+  - [x] `while` loop control structures
   - [ ] Tagged union enums with payload support
   - [ ] `match` pattern exhaustiveness checking
 - [ ] **Milestone 3: Generics and Traits**

@@ -225,6 +225,11 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         out_ << "(";
         emit_expression(*fa->target);
         out_ << "." << fa->field_name << ")";
+    } else if (auto* while_expr = dynamic_cast<const WhileExpr*>(&expr)) {
+        out_ << "while (";
+        emit_expression(*while_expr->condition);
+        out_ << ") ";
+        emit_block(*while_expr->body, false);
     }
 }
 

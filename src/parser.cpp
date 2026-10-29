@@ -160,6 +160,11 @@ std::unique_ptr<BlockExpr> Parser::parse_block() {
                 // Trailing expression!
                 block->trailing_expr = std::move(expr);
                 break;
+            } else if (dynamic_cast<IfExpr*>(expr.get()) ||
+                       dynamic_cast<WhileExpr*>(expr.get()) ||
+                       dynamic_cast<BlockExpr*>(expr.get())) {
+                // In Rust, expressions ending with '}' do not require a semicolon
+                block->statements.push_back(std::make_unique<ExprStmt>(std::move(expr), expr->location));
             } else {
                 throw std::runtime_error("Expected ';' after statement at [" +
                                          std::to_string(peek().location.line) + ":" +
@@ -326,6 +331,10 @@ std::unique_ptr<Expression> Parser::parse_primary() {
         return parse_if_expression();
     }
 
+    if (match(TokenType::KwWhile)) {
+        return parse_while_expression();
+    }
+
     if (match(TokenType::KwReturn)) {
         return parse_return_expression();
     }
@@ -397,6 +406,13 @@ std::unique_ptr<IfExpr> Parser::parse_if_expression() {
     }
 
     return std::make_unique<IfExpr>(std::move(cond), std::move(then_branch), std::move(else_branch), loc);
+}
+
+std::unique_ptr<WhileExpr> Parser::parse_while_expression() {
+    SourceLocation loc = previous().location;
+    auto cond = parse_expression();
+    auto body = parse_block();
+    return std::make_unique<WhileExpr>(std::move(cond), std::move(body), loc);
 }
 
 std::unique_ptr<ReturnExpr> Parser::parse_return_expression() {

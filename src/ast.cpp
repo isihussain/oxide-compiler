@@ -105,6 +105,17 @@ void IfExpr::dump(int indent) const {
     }
 }
 
+void WhileExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "WhileExpr : " << evaluated_type.to_string() << "\n";
+    print_indent(indent + 1);
+    std::cout << "Condition:\n";
+    if (condition) condition->dump(indent + 2);
+    print_indent(indent + 1);
+    std::cout << "Body:\n";
+    if (body) body->dump(indent + 2);
+}
+
 void ReturnExpr::dump(int indent) const {
     print_indent(indent);
     std::cout << "ReturnExpr : " << evaluated_type.to_string() << "\n";

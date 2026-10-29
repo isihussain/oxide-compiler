@@ -40,6 +40,7 @@ private:
     std::unique_ptr<Expression> parse_unary();
     std::unique_ptr<Expression> parse_primary();
     std::unique_ptr<IfExpr> parse_if_expression();
+    std::unique_ptr<WhileExpr> parse_while_expression();
     std::unique_ptr<ReturnExpr> parse_return_expression();
 
     std::vector<Token> tokens_;

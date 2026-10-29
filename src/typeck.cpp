@@ -325,6 +325,17 @@ Type TypeChecker::check_expression(Expression& expr) {
         return block->evaluated_type;
     }
 
+    if (auto* while_expr = dynamic_cast<WhileExpr*>(&expr)) {
+        Type cond_t = check_expression(*while_expr->condition);
+        if (cond_t.kind != BaseTypeKind::Bool) {
+            emit_error(while_expr->condition->location, "mismatched types: expected 'bool', found '" +
+                       cond_t.to_string() + "' in 'while' condition");
+        }
+        check_block(*while_expr->body, Type{BaseTypeKind::Unit, "", false, false}, false);
+        while_expr->evaluated_type = Type{BaseTypeKind::Unit, "", false, false};
+        return while_expr->evaluated_type;
+    }
+
     if (auto* s_init = dynamic_cast<StructInitExpr*>(&expr)) {
         auto it = struct_table_.find(s_init->struct_name);
         if (it == struct_table_.end()) {

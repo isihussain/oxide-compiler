@@ -179,6 +179,12 @@ void BorrowChecker::check_expression(Expression& expr) {
         return;
     }
 
+    if (auto* while_expr = dynamic_cast<WhileExpr*>(&expr)) {
+        check_expression(*while_expr->condition);
+        check_block(*while_expr->body);
+        return;
+    }
+
     if (auto* s_init = dynamic_cast<StructInitExpr*>(&expr)) {
         for (auto& f : s_init->fields) {
             check_expression(*f.value);

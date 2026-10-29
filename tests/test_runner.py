@@ -20,6 +20,7 @@ def run():
         ("examples/02_control_flow.rs", 42),
         ("examples/03_mutability.rs", 10),
         ("examples/04_structs.rs", 42),
+        ("examples/05_while_loop.rs", 55),
     ]
 
     passed = 0
@@ -49,6 +50,7 @@ def run():
         ("tests/ui/fail_struct_unknown_field.rs", "has no field named"),
         ("tests/ui/fail_struct_missing_field.rs", "missing field"),
         ("tests/ui/fail_struct_invalid_field_access.rs", "no field"),
+        ("tests/ui/fail_while_non_bool_condition.rs", "expected 'bool'"),
     ]
 
     for path_str, expected_err_sub in negative_tests:
