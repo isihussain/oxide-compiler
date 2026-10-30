@@ -107,6 +107,11 @@ void TypeChecker::register_structs() {
         {"max_z", Type{BaseTypeKind::I32, false, false}},
         {"max_velocity", Type{BaseTypeKind::I32, false, false}}
     }, {"min_x", "max_x", "min_y", "max_y", "min_z", "max_z", "max_velocity"}, SourceLocation{0, 0}};
+    struct_table_["SpscRingBuffer"] = StructSignature{"SpscRingBuffer", {}, {
+        {"head", Type{BaseTypeKind::I32, false, false}},
+        {"tail", Type{BaseTypeKind::I32, false, false}},
+        {"capacity", Type{BaseTypeKind::I32, false, false}}
+    }, {"head", "tail", "capacity"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1266,6 +1271,26 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "SpscRingBuffer::new") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "SpscRingBuffer::new takes exactly 1 argument (capacity)");
+            } else {
+                Type t = check_expression(*call->arguments[0]);
+                if (t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "SpscRingBuffer capacity must be 'i32'");
+                }
+                int64_t cap = 0;
+                if (extract_const_int(call->arguments[0].get(), cap)) {
+                    if (cap <= 0 || cap > 64) {
+                        emit_error(call->location, "invalid SpscRingBuffer capacity (" +
+                                   std::to_string(cap) + "): must be between 1 and 64");
+                    }
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "SpscRingBuffer", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -1753,6 +1778,68 @@ Type TypeChecker::check_expression(Expression& expr) {
                     }
                 }
                 mc->resolved_callee = "SafetyCorridor__verify_or_terminate";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "SpscRingBuffer") {
+            if (mc->method_name == "push") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SpscRingBuffer::push takes exactly 1 argument (item)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SpscRingBuffer::push argument must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "SpscRingBuffer__push";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "pop") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpscRingBuffer::pop takes 0 arguments");
+                }
+                mc->resolved_callee = "SpscRingBuffer__pop";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_empty") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpscRingBuffer::is_empty takes 0 arguments");
+                }
+                mc->resolved_callee = "SpscRingBuffer__is_empty";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_full") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpscRingBuffer::is_full takes 0 arguments");
+                }
+                mc->resolved_callee = "SpscRingBuffer__is_full";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "len") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpscRingBuffer::len takes 0 arguments");
+                }
+                mc->resolved_callee = "SpscRingBuffer__len";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "capacity") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpscRingBuffer::capacity takes 0 arguments");
+                }
+                mc->resolved_callee = "SpscRingBuffer__capacity";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;

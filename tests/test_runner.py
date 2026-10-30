@@ -43,6 +43,7 @@ def run():
         ("examples/25_realtime_wcet_budget.rs", 42, ["--profile=aerospace"]),
         ("examples/26_actuator_slew_limiter.rs", 42, ["--profile=aerospace"]),
         ("examples/27_afts_corridor_geofence.rs", 42, ["--profile=aerospace"]),
+        ("examples/28_spsc_ring_buffer.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -135,6 +136,9 @@ def run():
         ("tests/ui/fail_afts_velocity_negative.rs", "invalid safety corridor: max_velocity (-500) must be positive", []),
         ("tests/ui/fail_afts_static_breach_pos.rs", "AFTS safety corridor breach detected: position x (3500) exceeds corridor limits [-2000, 2000]", []),
         ("tests/ui/fail_afts_static_breach_vel.rs", "AFTS safety corridor breach detected: velocity magnitude squared (12800) exceeds maximum limit (10000)", []),
+        ("tests/ui/fail_spsc_capacity_zero.rs", "invalid SpscRingBuffer capacity (0): must be between 1 and 64", []),
+        ("tests/ui/fail_spsc_capacity_exceeded.rs", "invalid SpscRingBuffer capacity (128): must be between 1 and 64", []),
+        ("tests/ui/fail_spsc_immutable_push.rs", "cannot borrow immutable local variable 'ring' as mutable in method call", []),
     ]
 
     for item in negative_tests:
