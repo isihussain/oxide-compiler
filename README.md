@@ -206,7 +206,7 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_mmio_read_writeonly.rs (correctly rejected)
 [PASS] fail_mmio_missing_barrier.rs (correctly rejected)
 ==================================================
-Results: 122/122 tests passed.
+Results: 126/126 tests passed.
 ```
 
 ---
@@ -262,7 +262,7 @@ Results: 122/122 tests passed.
   - [x] Double-buffered flight parameter table with atomic commit and rollback (NASA cFS TBL)
   - [x] Attitude determination unit quaternion normalization and drift guard (NASA ADCS)
   - [x] Static-queued publish/subscribe flight software bus (NASA cFE Software Bus)
-  - [ ] Watchdog heartbeat strobe monitor and task deadline failover (NASA JPL F Prime)
+  - [x] Watchdog heartbeat strobe monitor and task deadline failover (NASA JPL F Prime)
   - [ ] Hierarchical sensor fault detection, isolation, and recovery (FDIR)
 
 ---

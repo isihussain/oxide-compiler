@@ -50,6 +50,7 @@ def run():
         ("examples/32_double_buffered_table.rs", 42, ["--profile=aerospace"]),
         ("examples/33_adcs_quaternion_norm.rs", 42, ["--profile=aerospace"]),
         ("examples/34_software_bus_pubsub.rs", 42, ["--profile=aerospace"]),
+        ("examples/35_watchdog_task_strobe.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -164,6 +165,9 @@ def run():
         ("tests/ui/fail_bus_channel_out_of_bounds.rs", "invalid software bus message ID (9): must be within static channel range [0..7]", []),
         ("tests/ui/fail_bus_channel_negative.rs", "invalid software bus message ID (-1): must be within static channel range [0..7]", []),
         ("tests/ui/fail_bus_immutable_publish.rs", "cannot borrow immutable local variable 'bus' as mutable in method call", []),
+        ("tests/ui/fail_watchdog_task_out_of_bounds.rs", "invalid watchdog task ID (5): must be within range [0..3]", []),
+        ("tests/ui/fail_watchdog_deadline_zero.rs", "invalid watchdog deadline (0): deadline_ticks must be strictly positive", []),
+        ("tests/ui/fail_watchdog_immutable_strobe.rs", "cannot borrow immutable local variable 'wd' as mutable in method call", []),
     ]
 
     for item in negative_tests:

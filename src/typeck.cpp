@@ -140,6 +140,7 @@ void TypeChecker::register_structs() {
         {"z", Type{BaseTypeKind::I32, false, false}}
     }, {"w", "x", "y", "z"}, SourceLocation{0, 0}};
     struct_table_["SoftwareBus"] = StructSignature{"SoftwareBus", {}, {}, {}, SourceLocation{0, 0}};
+    struct_table_["WatchdogMonitor"] = StructSignature{"WatchdogMonitor", {}, {}, {}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1464,6 +1465,15 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "WatchdogMonitor::new") {
+            if (!call->arguments.empty()) {
+                emit_error(call->location, "WatchdogMonitor::new takes 0 arguments");
+            }
+            call->callee = "WatchdogMonitor__new";
+            call->evaluated_type = Type{BaseTypeKind::Named, "WatchdogMonitor", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -2642,6 +2652,142 @@ Type TypeChecker::check_expression(Expression& expr) {
                     }
                 }
                 mc->resolved_callee = "SoftwareBus__clear";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "WatchdogMonitor") {
+            if (mc->method_name == "register_task") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "WatchdogMonitor::register_task takes exactly 2 arguments (task_id, deadline_ticks)");
+                } else {
+                    Type t1 = check_expression(*mc->arguments[0]);
+                    Type t2 = check_expression(*mc->arguments[1]);
+                    if (t1.kind != BaseTypeKind::I32 || t2.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "WatchdogMonitor::register_task arguments must be 'i32'");
+                    }
+                    int64_t id = 0, dl = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 4) {
+                            emit_error(mc->location, "invalid watchdog task ID (" + std::to_string(id) + "): must be within range [0..3]");
+                        }
+                    }
+                    if (extract_const_int(mc->arguments[1].get(), dl)) {
+                        if (dl <= 0) {
+                            emit_error(mc->location, "invalid watchdog deadline (" + std::to_string(dl) + "): deadline_ticks must be strictly positive");
+                        }
+                    }
+                }
+                mc->resolved_callee = "WatchdogMonitor__register_task";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "strobe") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "WatchdogMonitor::strobe takes exactly 1 argument (task_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "WatchdogMonitor::strobe task_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 4) {
+                            emit_error(mc->location, "invalid watchdog task ID (" + std::to_string(id) + "): must be within range [0..3]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "WatchdogMonitor__strobe";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "tick") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "WatchdogMonitor::tick takes exactly 1 argument (elapsed_ticks)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "WatchdogMonitor::tick elapsed_ticks must be 'i32'");
+                    }
+                    int64_t ticks = 0;
+                    if (extract_const_int(mc->arguments[0].get(), ticks)) {
+                        if (ticks < 0) {
+                            emit_error(mc->location, "invalid watchdog tick increment (" + std::to_string(ticks) + "): cannot be negative");
+                        }
+                    }
+                }
+                mc->resolved_callee = "WatchdogMonitor__tick";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_tripped") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "WatchdogMonitor::is_tripped takes 0 arguments");
+                }
+                mc->resolved_callee = "WatchdogMonitor__is_tripped";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "tripped_task") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "WatchdogMonitor::tripped_task takes 0 arguments");
+                }
+                mc->resolved_callee = "WatchdogMonitor__tripped_task";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "strobe_count") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "WatchdogMonitor::strobe_count takes exactly 1 argument (task_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "WatchdogMonitor::strobe_count task_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 4) {
+                            emit_error(mc->location, "invalid watchdog task ID (" + std::to_string(id) + "): must be within range [0..3]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "WatchdogMonitor__strobe_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_task_healthy") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "WatchdogMonitor::is_task_healthy takes exactly 1 argument (task_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "WatchdogMonitor::is_task_healthy task_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 4) {
+                            emit_error(mc->location, "invalid watchdog task ID (" + std::to_string(id) + "): must be within range [0..3]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "WatchdogMonitor__is_task_healthy";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset_trip") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "WatchdogMonitor::reset_trip takes 0 arguments");
+                }
+                mc->resolved_callee = "WatchdogMonitor__reset_trip";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
                 return mc->evaluated_type;
