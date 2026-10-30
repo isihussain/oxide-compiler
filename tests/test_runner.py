@@ -41,6 +41,7 @@ def run():
         ("examples/23_mmio_volatile_barriers.rs", 42, ["--profile=aerospace"]),
         ("examples/24_fixed_point_q16.rs", 42, ["--profile=aerospace"]),
         ("examples/25_realtime_wcet_budget.rs", 42, ["--profile=aerospace"]),
+        ("examples/26_actuator_slew_limiter.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -126,6 +127,9 @@ def run():
         ("tests/ui/fail_fixed_point_type_mismatch.rs", "mismatched types in fixed-point arithmetic", []),
         ("tests/ui/fail_realtime_budget_exceeded.rs", "real-time deadline exceeded in function 'guidance_deadline_exceeded'", ["--profile=aerospace"]),
         ("tests/ui/fail_realtime_budget_invalid.rs", "real-time deadline error in function 'zero_budget_task'", ["--profile=aerospace"]),
+        ("tests/ui/fail_actuator_bounds_inverted.rs", "invalid actuator configuration: min_bound (10000) must be strictly less than max_bound (-10000)", []),
+        ("tests/ui/fail_actuator_rate_negative.rs", "invalid actuator configuration: max_rate (-500) must be positive", []),
+        ("tests/ui/fail_actuator_initial_out_of_bounds.rs", "invalid actuator configuration: initial_pos (15000) exceeds physical bounds [-10000, 10000]", []),
     ]
 
     for item in negative_tests:

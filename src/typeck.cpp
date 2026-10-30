@@ -6,6 +6,24 @@
 
 namespace oxide {
 
+static bool extract_const_int(const Expression* expr, int64_t& out_val) {
+    if (!expr) return false;
+    if (auto* lit = dynamic_cast<const IntegerLiteralExpr*>(expr)) {
+        out_val = lit->value;
+        return true;
+    }
+    if (auto* un = dynamic_cast<const UnaryExpr*>(expr)) {
+        if (un->op == UnaryOp::Negate) {
+            int64_t inner = 0;
+            if (extract_const_int(un->operand.get(), inner)) {
+                out_val = -inner;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 TypeChecker::TypeChecker(Program& program) : program_(program) {}
 
 void TypeChecker::emit_error(SourceLocation loc, const std::string& message) {
@@ -74,6 +92,12 @@ void TypeChecker::register_structs() {
     struct_table_["Q16_16"] = StructSignature{"Q16_16", {}, {
         {"raw", Type{BaseTypeKind::I32, false, false}}
     }, {"raw"}, SourceLocation{0, 0}};
+    struct_table_["SlewRateLimiter"] = StructSignature{"SlewRateLimiter", {}, {
+        {"current_position", Type{BaseTypeKind::I32, false, false}},
+        {"max_rate", Type{BaseTypeKind::I32, false, false}},
+        {"min_bound", Type{BaseTypeKind::I32, false, false}},
+        {"max_bound", Type{BaseTypeKind::I32, false, false}}
+    }, {"current_position", "max_rate", "min_bound", "max_bound"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1136,6 +1160,43 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "SlewRateLimiter::new") {
+            if (call->arguments.size() != 4) {
+                emit_error(call->location, "SlewRateLimiter::new takes exactly 4 arguments (initial_pos, max_rate, min_bound, max_bound)");
+            } else {
+                for (size_t i = 0; i < 4; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "SlewRateLimiter parameter must be 'i32'");
+                    }
+                }
+                int64_t init_val = 0, rate_val = 0, min_val = 0, max_val = 0;
+                bool has_init = extract_const_int(call->arguments[0].get(), init_val);
+                bool has_rate = extract_const_int(call->arguments[1].get(), rate_val);
+                bool has_min = extract_const_int(call->arguments[2].get(), min_val);
+                bool has_max = extract_const_int(call->arguments[3].get(), max_val);
+
+                if (has_min && has_max && min_val >= max_val) {
+                    emit_error(call->location, "invalid actuator configuration: min_bound (" +
+                               std::to_string(min_val) + ") must be strictly less than max_bound (" +
+                               std::to_string(max_val) + ")");
+                }
+                if (has_rate && rate_val <= 0) {
+                    emit_error(call->location, "invalid actuator configuration: max_rate (" +
+                               std::to_string(rate_val) + ") must be positive");
+                }
+                if (has_init && has_min && has_max) {
+                    if (init_val < min_val || init_val > max_val) {
+                        emit_error(call->location, "invalid actuator configuration: initial_pos (" +
+                                   std::to_string(init_val) + ") exceeds physical bounds [" +
+                                   std::to_string(min_val) + ", " + std::to_string(max_val) + "]");
+                    }
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "SlewRateLimiter", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -1502,6 +1563,42 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "Q16_16__" + mc->method_name;
                 mc->resolved_self_kind = SelfKind::Value;
                 mc->evaluated_type = Type{BaseTypeKind::Named, "Q16_16", false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "SlewRateLimiter") {
+            if (mc->method_name == "step") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "SlewRateLimiter::step takes exactly 2 arguments (target, dt_ms)");
+                } else {
+                    Type t_arg = check_expression(*mc->arguments[0]);
+                    Type dt_arg = check_expression(*mc->arguments[1]);
+                    if (t_arg.kind != BaseTypeKind::I32 || dt_arg.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "SlewRateLimiter::step arguments must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "SlewRateLimiter__step";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SlewRateLimiter::current takes 0 arguments");
+                }
+                mc->resolved_callee = "SlewRateLimiter__current";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_saturated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SlewRateLimiter::is_saturated takes 0 arguments");
+                }
+                mc->resolved_callee = "SlewRateLimiter__is_saturated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
             }
         }
