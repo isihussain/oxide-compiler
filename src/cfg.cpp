@@ -11,6 +11,14 @@ CFGBuilder::CFGBuilder(const Function& func) {
     build_cfg(func);
 }
 
+// Builds the Control Flow Graph (CFG) for an individual function.
+// Translates high-level hierarchical AST structures into flat Basic Blocks
+// suitable for Kildall dataflow analysis, definite initialization, and NLL borrow checking.
+//
+// Invariants enforced:
+//   1. Each BasicBlock has at most one terminator (Branch, Goto, Return).
+//   2. Statements within a basic block execute strictly sequentially without internal branches.
+//   3. Predecessor and successor edge maps are bidirectionally consistent.
 void CFGBuilder::build_cfg(const Function& func) {
     cfg_.name = func.name;
     cfg_.parameters = func.parameters;

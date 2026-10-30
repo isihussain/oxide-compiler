@@ -30,7 +30,7 @@
  */
 
 void print_usage(const char* prog) {
-    std::cout << "Oxide - Independent Rust Compiler (Milestone 1 Core)\n"
+    std::cout << "Oxide - Independent Rust Compiler with Aerospace Safety Engine\n"
               << "Usage: " << prog << " [options] <input.rs>\n\n"
               << "Options:\n"
               << "  -o <file>             Compile to executable binary (via host C toolchain)\n"
@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
             print_usage(argv[0]);
             return 0;
         } else if (arg == "-v" || arg == "--version") {
-            std::cout << "oxide 0.1.0 (independent rust compiler, milestone 1)\n";
+            std::cout << "oxide 0.6.0 (independent rust compiler, aerospace edition)\n";
             return 0;
         } else if (arg == "--emit-ast") {
             emit_ast = true;
@@ -168,7 +168,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    // 6. Code Generation (C99)
+    // 8. Code Generation (C99)
     oxide::CCodeGenerator codegen(*program, aerospace_profile);
     std::string c_code = codegen.generate();
 

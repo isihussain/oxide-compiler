@@ -145,15 +145,22 @@ void TypeChecker::register_state_machines() {
             adj[t.from_state].push_back(t.to_state);
         }
 
-        // Deadlock detection:
-        // 1. Every non-terminal state must have outgoing transitions.
+        // Aerospace Mission Flight State Machine Verification:
+        // NASA and ESA flight software standards mandate that flight sequences:
+        //  1. Never enter a deadlock sink (a non-terminal state lacking any outgoing transitions).
+        //  2. Never enter an unescapable trap cycle (a closed strongly connected component that
+        //     cannot transition to an emergency abort, safe-hold, or mission completion terminal state).
+
+        // Invariant 1: Non-terminal states must have outgoing transitions.
         for (const auto& s : normal_states) {
             if (adj.find(s) == adj.end() || adj[s].empty()) {
                 emit_error(sm->location, "deadlock detected in state_machine '" + sm->name + "': non-terminal state '" + s + "' has no outgoing transitions");
             }
         }
 
-        // 2. Deadlock trap / abort reachability: Every non-terminal state must be able to reach at least one terminal state.
+        // Invariant 2: Terminal/Abort Reachability (Breadth-First Search).
+        // Traverses the directed state transition graph starting from each non-terminal state.
+        // If a state cannot reach ANY terminal state, the flight software could freeze indefinitely.
         for (const auto& s : normal_states) {
             std::set<std::string> visited;
             std::queue<std::string> q;
@@ -635,6 +642,8 @@ Type TypeChecker::check_expression(Expression& expr) {
         switch (bin->op) {
             case BinaryOp::Add:
             case BinaryOp::Sub: {
+                // Fixed-Point Arithmetic (Q16.16):
+                // Enforces type parity; addition and subtraction operate directly on the raw 32-bit values.
                 if (left_t.kind == BaseTypeKind::Named && left_t.name == "Q16_16" &&
                     right_t.kind == BaseTypeKind::Named && right_t.name == "Q16_16") {
                     bin->evaluated_type = left_t;
@@ -658,6 +667,10 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = Type{BaseTypeKind::F64, false, false};
                     return bin->evaluated_type;
                 }
+                // Mars Climate Orbiter Safeguard (Physical Dimension Addition/Subtraction):
+                // Adding or subtracting physical quantities requires exact dimensional equivalence:
+                //   [M^a L^b T^c] +/- [M^d L^e T^f] is valid iff (a==d && b==e && c==f).
+                // Adding a dimensionless scalar to a dimensional quantity is rejected.
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
                     if (!(left_t.dimension == right_t.dimension)) {
                         emit_error(bin->location, "cannot " + std::string(bin->op == BinaryOp::Add ? "add" : "subtract") +
@@ -711,6 +724,9 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = left_t;
                     return bin->evaluated_type;
                 }
+                // Physical Dimension Multiplication:
+                // Exponents add algebraically: [M^(m1+m2) L^(l1+l2) T^(t1+t2)].
+                // If the sum yields [M^0 L^0 T^0], it cancels out into a dimensionless scalar ('i32').
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
                     PhysicalDimension dim{
                         (int8_t)(left_t.dimension.m + right_t.dimension.m),
@@ -791,6 +807,9 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = left_t;
                     return bin->evaluated_type;
                 }
+                // Physical Dimension Division:
+                // Exponents subtract algebraically: [M^(m1-m2) L^(l1-l2) T^(t1-t2)].
+                // If the exponents reach [M^0 L^0 T^0], it cancels out into a dimensionless scalar ('i32').
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
                     PhysicalDimension dim{
                         (int8_t)(left_t.dimension.m - right_t.dimension.m),
@@ -839,6 +858,8 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                     return bin->evaluated_type;
                 }
+                // Physical Dimension Relational Comparison:
+                // Quantities can only be compared if their physical dimensions match identically.
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
                     if (!(left_t.dimension == right_t.dimension)) {
                         emit_error(bin->location, "cannot compare differing physical dimensions '" +

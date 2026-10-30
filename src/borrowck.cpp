@@ -34,14 +34,18 @@ const std::set<std::string>& LivenessAnalyzer::live_out(BlockId block) const {
     return empty_set_;
 }
 
-// Fixed-point backward dataflow analysis for variable liveness.
-// Iterates until live_in sets stabilize across all basic blocks:
+// Fixed-point backward dataflow analysis for variable liveness (Kildall-style).
+// Solves classical dataflow equations on the control flow graph:
 //   LiveOut[B] = Union_{S in Succ(B)} LiveIn[S]
 //   LiveIn[B]  = Uses(B) Union (LiveOut[B] \ Defs(B))
+//
+// Iterates backward through basic blocks until the live_in sets reach a fixpoint.
+// Monotonicity over finite variable sets guarantees termination in O(|Blocks| * |Vars|).
 void LivenessAnalyzer::compute_liveness(const CFGFunction& cfg) {
     bool changed = true;
     while (changed) {
         changed = false;
+        // Process blocks in reverse order for faster convergence on forward acyclic CFGs
         for (int i = (int)cfg.blocks.size() - 1; i >= 0; --i) {
             const BasicBlock& bb = cfg.blocks[i];
             std::set<std::string> out;
@@ -58,11 +62,14 @@ void LivenessAnalyzer::compute_liveness(const CFGFunction& cfg) {
                 in.insert(bb.terminator.return_var);
             }
 
+            // Transfer function inside basic block: process statements in reverse order
             for (int s = (int)bb.statements.size() - 1; s >= 0; --s) {
                 const CFGStatement& stmt = bb.statements[s];
+                // Variable definition kills previous liveness
                 if (!stmt.target_var.empty() && stmt.kind == CFGStmtKind::AssignVar) {
                     in.erase(stmt.target_var);
                 }
+                // Variable reads generate liveness
                 for (const auto& r : stmt.read_vars) {
                     in.insert(r);
                 }
@@ -75,7 +82,9 @@ void LivenessAnalyzer::compute_liveness(const CFGFunction& cfg) {
         }
     }
 
-    // Compute point-specific live_before and live_after
+    // Compute point-specific live_before and live_after sets for fine-grained NLL checking.
+    // In Rust NLL (Polonius model), loan validity depends on whether the reference variable
+    // is live *immediately after* a specific CFG statement, rather than throughout the entire scope.
     for (const auto& bb : cfg.blocks) {
         std::set<std::string> cur_live = live_out_[bb.id];
         if (bb.terminator.kind == TerminatorKind::Branch && !bb.terminator.cond_var.empty()) {
@@ -157,6 +166,9 @@ void BorrowChecker::check_function_nll(const CFGFunction& cfg, const LivenessAna
     }
 
     // 1. Definite Initialization Analysis (Forward Dataflow - Must Analysis)
+    // Determines whether a variable is guaranteed initialized before read.
+    // Confluence operator is set intersection (InitIn[B] = Intersection_{P in Preds(B)} InitOut[P]).
+    // Initialized sets start at Universal (all_vars) for non-entry blocks to ensure greatest fixpoint.
     std::map<BlockId, std::set<std::string>> init_in;
     std::map<BlockId, std::set<std::string>> init_out;
 
@@ -279,6 +291,9 @@ void BorrowChecker::check_function_nll(const CFGFunction& cfg, const LivenessAna
             }
 
             // C) Check mutation conflicts with active loans (Non-Lexical)
+            // A loan is considered active at point pt if ANY of its holder references
+            // are live in the live_after set at this exact statement point.
+            // If the holder reference is dead after this statement, the loan has expired.
             if (stmt.kind == CFGStmtKind::AssignVar || stmt.kind == CFGStmtKind::AssignField || stmt.kind == CFGStmtKind::AssignIndex) {
                 for (const auto& loan : loans) {
                     if (loan.borrowed_var == stmt.target_var) {
@@ -380,6 +395,8 @@ void BorrowChecker::check_function_nll(const CFGFunction& cfg, const LivenessAna
             }
 
             // F) Propagate loan holders on reference assignment: r2 = r1
+            // When a reference is copied or assigned, the target variable becomes an alias
+            // and co-holder of the loan. The borrow remains active until ALL holders are dead.
             if (stmt.kind == CFGStmtKind::AssignVar && !stmt.target_var.empty()) {
                 for (auto& loan : loans) {
                     for (const auto& r : stmt.read_vars) {

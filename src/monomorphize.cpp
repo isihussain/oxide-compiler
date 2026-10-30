@@ -245,6 +245,12 @@ std::unique_ptr<BlockExpr> Monomorphizer::clone_block(const BlockExpr& block, co
     return res;
 }
 
+// Monomorphizes a generic function for a specific sequence of concrete type arguments.
+// Generates a mangled function name (e.g. `swap__i32`), deep-clones the function AST body,
+// substitutes all generic type parameter instances with concrete types, and adds the
+// specialized concrete function definition to the output program.
+//
+// Specialization is memoized in specialized_functions_ to prevent duplicate instantiation.
 std::string Monomorphizer::specialize_function(const std::string& orig_name, const std::vector<Type>& type_args) {
     std::string mangled = orig_name;
     for (const auto& arg : type_args) {
@@ -285,6 +291,8 @@ std::string Monomorphizer::specialize_function(const std::string& orig_name, con
     return mangled;
 }
 
+// Monomorphizes a generic struct for concrete type arguments (e.g. `Point<i32>` -> `Point__i32`).
+// Substitutes all struct field type declarations and memoizes the cloned struct definition.
 std::string Monomorphizer::specialize_struct(const std::string& orig_name, const std::vector<Type>& type_args) {
     std::string mangled = orig_name;
     for (const auto& arg : type_args) {

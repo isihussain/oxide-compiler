@@ -169,6 +169,8 @@ void CCodeGenerator::emit_includes() {
     line("}");
     line();
     line("/* Deterministic Fixed-Point Arithmetic (Q16.16) for Backup Flight Controllers */");
+    line("/* Scaled representation: value = raw / 65536.0 (16-bit integer, 16-bit fractional). */");
+    line("/* Uses 64-bit intermediate products and dividends to guarantee bit-exact scaling without FPU. */");
     line("typedef struct {");
     line("    int32_t raw;");
     line("} Q16_16;");
