@@ -46,6 +46,7 @@ def run():
         ("examples/28_spsc_ring_buffer.rs", 42, ["--profile=aerospace"]),
         ("examples/29_mass_depletion_invariants.rs", 42, ["--profile=aerospace"]),
         ("examples/30_bitpacked_telemetry_crc.rs", 42, ["--profile=aerospace"]),
+        ("examples/31_cyclomatic_complexity.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -148,6 +149,8 @@ def run():
         ("tests/ui/fail_telemetry_packet_id_zero.rs", "invalid telemetry packet: packet_id (0) must be positive", []),
         ("tests/ui/fail_telemetry_timestamp_negative.rs", "invalid telemetry packet: timestamp (-50) cannot be negative", []),
         ("tests/ui/fail_telemetry_channel_out_of_bounds.rs", "telemetry packet channel index (4) out of bounds [0..3]", []),
+        ("tests/ui/fail_complexity_threshold_exceeded.rs", "cyclomatic complexity of function 'complex_flight_evaluator' (5) exceeds threshold (3)", ["--profile=aerospace"]),
+        ("tests/ui/fail_complexity_attribute_invalid.rs", "cyclomatic complexity configuration error in function 'zero_complexity_task': max_complexity must be a positive integer", ["--profile=aerospace"]),
     ]
 
     for item in negative_tests:

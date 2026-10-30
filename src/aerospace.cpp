@@ -1,6 +1,8 @@
 #include "aerospace.hpp"
+#include "cfg.hpp"
 #include <algorithm>
 #include <functional>
+#include <queue>
 #include <sstream>
 
 namespace oxide {
@@ -591,6 +593,64 @@ void AerospaceVerifier::check_realtime_budgets() {
     }
 }
 
+// McCabe Cyclomatic Complexity Verifier (NASA NESC / SLS Standard):
+// Evaluates the graph-theoretic cyclomatic complexity M = E - N + 2P over the Control Flow Graph (CFG).
+// Enforces that flight software units do not exceed the NASA complexity ceiling (default M <= 15, or #[max_complexity = N]),
+// ensuring that all decision paths remain testable and verifiable.
+void AerospaceVerifier::check_cyclomatic_complexity() {
+    for (const auto& fn : program_.functions) {
+        if (!fn->body) continue;
+
+        auto custom_max = fn->get_max_complexity();
+        int64_t threshold = 15; // NASA / SLS standard threshold
+        if (custom_max.has_value()) {
+            threshold = *custom_max;
+            if (threshold <= 0) {
+                emit_error(fn->location, "cyclomatic complexity configuration error in function '" + fn->name + "': max_complexity must be a positive integer");
+                continue;
+            }
+        }
+
+        CFGFunction cfg = CFGBuilder::build(*fn);
+        std::set<BlockId> visited;
+        std::queue<BlockId> q;
+        if (cfg.entry_block < cfg.blocks.size()) {
+            q.push(cfg.entry_block);
+            visited.insert(cfg.entry_block);
+        }
+
+        while (!q.empty()) {
+            BlockId curr = q.front();
+            q.pop();
+            for (BlockId succ : cfg.blocks[curr].successors) {
+                if (succ < cfg.blocks.size() && visited.insert(succ).second) {
+                    q.push(succ);
+                }
+            }
+        }
+
+        size_t N = visited.size();
+        size_t E = 0;
+        for (BlockId u : visited) {
+            for (BlockId v : cfg.blocks[u].successors) {
+                if (visited.count(v)) {
+                    E++;
+                }
+            }
+        }
+
+        int64_t M = (int64_t)E - (int64_t)N + 2;
+        if (M < 1) M = 1;
+
+        if (M > threshold) {
+            emit_error(fn->location, "cyclomatic complexity of function '" + fn->name + "' (" +
+                       std::to_string(M) + ") exceeds threshold (" + std::to_string(threshold) +
+                       ") [NASA NESC / SLS Rule: M = E - N + 2, E=" + std::to_string(E) +
+                       ", N=" + std::to_string(N) + "]");
+        }
+    }
+}
+
 bool AerospaceVerifier::verify() {
     build_call_graph();
     check_recursion();
@@ -598,6 +658,7 @@ bool AerospaceVerifier::verify() {
     check_memory_allocation();
     check_volatile_barriers();
     check_realtime_budgets();
+    check_cyclomatic_complexity();
     return errors_.empty();
 }
 

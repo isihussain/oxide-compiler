@@ -206,7 +206,7 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_mmio_read_writeonly.rs (correctly rejected)
 [PASS] fail_mmio_missing_barrier.rs (correctly rejected)
 ==================================================
-Results: 78/78 tests passed.
+Results: 109/109 tests passed.
 ```
 
 ---
@@ -257,6 +257,13 @@ Results: 78/78 tests passed.
   - [x] Lock-free zero-allocation Single-Producer Single-Consumer (SPSC) telemetry ring buffer
   - [x] Physical dry mass lower bound invariants and propellant depletion verification
   - [x] Bit-packed zero-copy telemetry packet serialization and CRC verification
+- [ ] **Milestone 8: NASA Flight Software Architectures (cFS, JPL F Prime, NESC)**
+  - [x] McCabe cyclomatic complexity static analysis & NASA/NESC threshold enforcement
+  - [ ] Double-buffered flight parameter table with atomic commit and rollback (NASA cFS TBL)
+  - [ ] Attitude determination unit quaternion normalization and drift guard (NASA ADCS)
+  - [ ] Static-queued publish/subscribe flight software bus (NASA cFE Software Bus)
+  - [ ] Watchdog heartbeat strobe monitor and task deadline failover (NASA JPL F Prime)
+  - [ ] Hierarchical sensor fault detection, isolation, and recovery (FDIR)
 
 ---
 

@@ -43,6 +43,7 @@ private:
     void check_volatile_barriers();
     void check_block_barriers(const BlockExpr& block, std::optional<SourceLocation>& last_write_loc);
     void check_realtime_budgets();
+    void check_cyclomatic_complexity();
     int64_t compute_expr_cycles(const Expression& expr);
     int64_t compute_block_cycles(const BlockExpr& block);
 

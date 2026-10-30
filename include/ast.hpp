@@ -412,6 +412,29 @@ struct LetStmt : public Statement {
         return std::nullopt;
     }
 
+    std::optional<int64_t> get_max_complexity() const {
+        for (const auto& a : attributes) {
+            size_t pos = a.find("max_complexity=");
+            if (pos != std::string::npos) {
+                size_t start = pos + 15;
+                size_t end = a.find_first_of("),", start);
+                std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+            if (a.rfind("max_complexity(", 0) == 0) {
+                size_t start = 15;
+                size_t end = a.find(")", start);
+                std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+        }
+        return std::nullopt;
+    }
+
     LetStmt(std::string name, bool is_mut, Type type, std::unique_ptr<Expression> init, SourceLocation loc)
         : var_name(std::move(name)), is_mutable(is_mut), declared_type(type), initializer(std::move(init)) { location = loc; }
     void dump(int indent = 0) const override;
@@ -471,6 +494,29 @@ struct Function : public ASTNode {
             }
             if (a.rfind("realtime_budget(", 0) == 0) {
                 size_t start = 16;
+                size_t end = a.find(")", start);
+                std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<int64_t> get_max_complexity() const {
+        for (const auto& a : attributes) {
+            size_t pos = a.find("max_complexity=");
+            if (pos != std::string::npos) {
+                size_t start = pos + 15;
+                size_t end = a.find_first_of("),", start);
+                std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+            if (a.rfind("max_complexity(", 0) == 0) {
+                size_t start = 15;
                 size_t end = a.find(")", start);
                 std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
                 try {
