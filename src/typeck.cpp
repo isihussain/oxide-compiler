@@ -71,6 +71,9 @@ void TypeChecker::register_structs() {
         {"address", Type{BaseTypeKind::I32, false, false}},
         {"value", Type{BaseTypeKind::GenericParam, "T", false, false}}
     }, {"address", "value"}, SourceLocation{0, 0}};
+    struct_table_["Q16_16"] = StructSignature{"Q16_16", {}, {
+        {"raw", Type{BaseTypeKind::I32, false, false}}
+    }, {"raw"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -632,6 +635,17 @@ Type TypeChecker::check_expression(Expression& expr) {
         switch (bin->op) {
             case BinaryOp::Add:
             case BinaryOp::Sub: {
+                if (left_t.kind == BaseTypeKind::Named && left_t.name == "Q16_16" &&
+                    right_t.kind == BaseTypeKind::Named && right_t.name == "Q16_16") {
+                    bin->evaluated_type = left_t;
+                    return bin->evaluated_type;
+                }
+                if (left_t.name == "Q16_16" || right_t.name == "Q16_16") {
+                    emit_error(bin->location, "mismatched types in fixed-point arithmetic: cannot operate on '" +
+                               left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                    bin->evaluated_type = left_t.name == "Q16_16" ? left_t : right_t;
+                    return bin->evaluated_type;
+                }
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
                     bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                     return bin->evaluated_type;
@@ -666,6 +680,17 @@ Type TypeChecker::check_expression(Expression& expr) {
                 return bin->evaluated_type;
             }
             case BinaryOp::Mul: {
+                if (left_t.kind == BaseTypeKind::Named && left_t.name == "Q16_16" &&
+                    right_t.kind == BaseTypeKind::Named && right_t.name == "Q16_16") {
+                    bin->evaluated_type = left_t;
+                    return bin->evaluated_type;
+                }
+                if (left_t.name == "Q16_16" || right_t.name == "Q16_16") {
+                    emit_error(bin->location, "mismatched types in fixed-point arithmetic: cannot operate on '" +
+                               left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                    bin->evaluated_type = left_t.name == "Q16_16" ? left_t : right_t;
+                    return bin->evaluated_type;
+                }
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
                     bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                     return bin->evaluated_type;
@@ -705,6 +730,28 @@ Type TypeChecker::check_expression(Expression& expr) {
                 return bin->evaluated_type;
             }
             case BinaryOp::Div: {
+                if (left_t.kind == BaseTypeKind::Named && left_t.name == "Q16_16" &&
+                    right_t.kind == BaseTypeKind::Named && right_t.name == "Q16_16") {
+                    if (auto* call_r = dynamic_cast<CallExpr*>(bin->right.get())) {
+                        if (call_r->callee == "Q16_16::from_int" || call_r->callee == "Q16_16::from_raw" || call_r->callee == "Q16_16::new") {
+                            if (!call_r->arguments.empty()) {
+                                if (auto* int_lit = dynamic_cast<IntegerLiteralExpr*>(call_r->arguments[0].get())) {
+                                    if (int_lit->value == 0) {
+                                        emit_error(bin->location, "division by zero: fixed-point divisor is 0");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    bin->evaluated_type = left_t;
+                    return bin->evaluated_type;
+                }
+                if (left_t.name == "Q16_16" || right_t.name == "Q16_16") {
+                    emit_error(bin->location, "mismatched types in fixed-point arithmetic: cannot operate on '" +
+                               left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                    bin->evaluated_type = left_t.name == "Q16_16" ? left_t : right_t;
+                    return bin->evaluated_type;
+                }
                 // Static check for division by zero literal
                 if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
                     if (r_fl->value == 0.0) {
@@ -775,6 +822,11 @@ Type TypeChecker::check_expression(Expression& expr) {
             case BinaryOp::LessEqual:
             case BinaryOp::Greater:
             case BinaryOp::GreaterEqual: {
+                if (left_t.kind == BaseTypeKind::Named && left_t.name == "Q16_16" &&
+                    right_t.kind == BaseTypeKind::Named && right_t.name == "Q16_16") {
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
+                }
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
                     bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                     return bin->evaluated_type;
@@ -806,6 +858,10 @@ Type TypeChecker::check_expression(Expression& expr) {
         Type inner_t = check_expression(*un->operand);
         switch (un->op) {
             case UnaryOp::Negate: {
+                if (inner_t.kind == BaseTypeKind::Named && inner_t.name == "Q16_16") {
+                    un->evaluated_type = inner_t;
+                    return un->evaluated_type;
+                }
                 if (inner_t.kind != BaseTypeKind::I32 && inner_t.kind != BaseTypeKind::PhysicalUnit &&
                     inner_t.kind != BaseTypeKind::F32 && inner_t.kind != BaseTypeKind::F64) {
                     emit_error(un->location, "unary minus only valid on numbers or physical units");
@@ -1031,6 +1087,31 @@ Type TypeChecker::check_expression(Expression& expr) {
                 emit_error(call->location, "memory_barrier takes 0 arguments");
             }
             call->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "Q16_16::from_int" || call->callee == "Q16_16::new") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "Q16_16::from_int takes exactly 1 argument (i32)");
+            } else {
+                Type arg_t = check_expression(*call->arguments[0]);
+                if (arg_t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "mismatched types in Q16_16::from_int: expected 'i32', found '" + arg_t.to_string() + "'");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "Q16_16", false, false};
+            return call->evaluated_type;
+        }
+        if (call->callee == "Q16_16::from_raw") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "Q16_16::from_raw takes exactly 1 argument (i32)");
+            } else {
+                Type arg_t = check_expression(*call->arguments[0]);
+                if (arg_t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "mismatched types in Q16_16::from_raw: expected 'i32', found '" + arg_t.to_string() + "'");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "Q16_16", false, false};
             return call->evaluated_type;
         }
 
@@ -1365,6 +1446,41 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "VolatileRegister__addr";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "Q16_16") {
+            if (mc->method_name == "to_int") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Q16_16::to_int takes 0 arguments");
+                }
+                mc->resolved_callee = "Q16_16__to_int";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "raw") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Q16_16::raw takes 0 arguments");
+                }
+                mc->resolved_callee = "Q16_16__raw";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "saturating_add" || mc->method_name == "saturating_sub" || mc->method_name == "saturating_mul") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Q16_16::" + mc->method_name + " takes exactly 1 argument");
+                } else {
+                    Type arg_t = check_expression(*mc->arguments[0]);
+                    if (arg_t.kind != BaseTypeKind::Named || arg_t.name != "Q16_16") {
+                        emit_error(mc->arguments[0]->location, "mismatched types in Q16_16::" + mc->method_name + ": expected 'Q16_16', found '" + arg_t.to_string() + "'");
+                    }
+                }
+                mc->resolved_callee = "Q16_16__" + mc->method_name;
+                mc->resolved_self_kind = SelfKind::Value;
+                mc->evaluated_type = Type{BaseTypeKind::Named, "Q16_16", false, false};
                 return mc->evaluated_type;
             }
         }

@@ -168,6 +168,77 @@ void CCodeGenerator::emit_includes() {
     line("    __asm__ __volatile__(\"\" ::: \"memory\");");
     line("}");
     line();
+    line("/* Deterministic Fixed-Point Arithmetic (Q16.16) for Backup Flight Controllers */");
+    line("typedef struct {");
+    line("    int32_t raw;");
+    line("} Q16_16;");
+    line();
+    line("static inline Q16_16 Q16_16__from_int(int32_t val) {");
+    line("    return (Q16_16){ .raw = (int32_t)((uint32_t)val << 16) };");
+    line("}");
+    line();
+    line("static inline Q16_16 Q16_16__new(int32_t val) {");
+    line("    return (Q16_16){ .raw = (int32_t)((uint32_t)val << 16) };");
+    line("}");
+    line();
+    line("static inline Q16_16 Q16_16__from_raw(int32_t raw) {");
+    line("    return (Q16_16){ .raw = raw };");
+    line("}");
+    line();
+    line("static inline int32_t Q16_16__to_int(const Q16_16* self) {");
+    line("    return self->raw >> 16;");
+    line("}");
+    line();
+    line("static inline int32_t Q16_16__raw(const Q16_16* self) {");
+    line("    return self->raw;");
+    line("}");
+    line();
+    line("static inline Q16_16 __oxide_q16_neg(Q16_16 a) {");
+    line("    return (Q16_16){ .raw = -a.raw };");
+    line("}");
+    line();
+    line("static inline Q16_16 __oxide_q16_clamp(int64_t val) {");
+    line("    if (val > 2147483647LL) return (Q16_16){ .raw = 2147483647 };");
+    line("    if (val < -2147483648LL) return (Q16_16){ .raw = (int32_t)-2147483648LL };");
+    line("    return (Q16_16){ .raw = (int32_t)val };");
+    line("}");
+    line();
+    line("static inline Q16_16 __oxide_q16_add(Q16_16 a, Q16_16 b, bool saturate) {");
+    line("    if (saturate) {");
+    line("        int64_t res = (int64_t)a.raw + (int64_t)b.raw;");
+    line("        return __oxide_q16_clamp(res);");
+    line("    }");
+    line("    return (Q16_16){ .raw = a.raw + b.raw };");
+    line("}");
+    line();
+    line("static inline Q16_16 __oxide_q16_sub(Q16_16 a, Q16_16 b, bool saturate) {");
+    line("    if (saturate) {");
+    line("        int64_t res = (int64_t)a.raw - (int64_t)b.raw;");
+    line("        return __oxide_q16_clamp(res);");
+    line("    }");
+    line("    return (Q16_16){ .raw = a.raw - b.raw };");
+    line("}");
+    line();
+    line("static inline Q16_16 __oxide_q16_mul(Q16_16 a, Q16_16 b, bool saturate) {");
+    line("    int64_t res = ((int64_t)a.raw * (int64_t)b.raw) >> 16;");
+    line("    if (saturate) {");
+    line("        return __oxide_q16_clamp(res);");
+    line("    }");
+    line("    return (Q16_16){ .raw = (int32_t)res };");
+    line("}");
+    line();
+    line("static inline Q16_16 __oxide_q16_div(Q16_16 a, Q16_16 b, bool saturate) {");
+    line("    if (b.raw == 0) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: fixed-point division by zero\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    int64_t res = (((int64_t)a.raw) << 16) / b.raw;");
+    line("    if (saturate) {");
+    line("        return __oxide_q16_clamp(res);");
+    line("    }");
+    line("    return (Q16_16){ .raw = (int32_t)res };");
+    line("}");
+    line();
 }
 
 // Emits safety-critical runtime traps for the aerospace profile.
@@ -800,7 +871,51 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
     } else if (auto* var = dynamic_cast<const VariableExpr*>(&expr)) {
         out_ << var->name;
     } else if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
-        if (aerospace_profile_ && (bin->op == BinaryOp::Add || bin->op == BinaryOp::Sub ||
+        if (bin->left->evaluated_type.name == "Q16_16" && bin->right->evaluated_type.name == "Q16_16") {
+            if (bin->op == BinaryOp::Add) {
+                out_ << "__oxide_q16_add(";
+                emit_expression(*bin->left);
+                out_ << ", ";
+                emit_expression(*bin->right);
+                out_ << ", " << (aerospace_profile_ ? "true" : "false") << ")";
+            } else if (bin->op == BinaryOp::Sub) {
+                out_ << "__oxide_q16_sub(";
+                emit_expression(*bin->left);
+                out_ << ", ";
+                emit_expression(*bin->right);
+                out_ << ", " << (aerospace_profile_ ? "true" : "false") << ")";
+            } else if (bin->op == BinaryOp::Mul) {
+                out_ << "__oxide_q16_mul(";
+                emit_expression(*bin->left);
+                out_ << ", ";
+                emit_expression(*bin->right);
+                out_ << ", " << (aerospace_profile_ ? "true" : "false") << ")";
+            } else if (bin->op == BinaryOp::Div) {
+                out_ << "__oxide_q16_div(";
+                emit_expression(*bin->left);
+                out_ << ", ";
+                emit_expression(*bin->right);
+                out_ << ", " << (aerospace_profile_ ? "true" : "false") << ")";
+            } else if (bin->op == BinaryOp::Equal || bin->op == BinaryOp::NotEqual ||
+                       bin->op == BinaryOp::Less || bin->op == BinaryOp::LessEqual ||
+                       bin->op == BinaryOp::Greater || bin->op == BinaryOp::GreaterEqual) {
+                out_ << "((";
+                emit_expression(*bin->left);
+                out_ << ").raw ";
+                switch (bin->op) {
+                    case BinaryOp::Equal: out_ << "== ("; break;
+                    case BinaryOp::NotEqual: out_ << "!= ("; break;
+                    case BinaryOp::Less: out_ << "< ("; break;
+                    case BinaryOp::LessEqual: out_ << "<= ("; break;
+                    case BinaryOp::Greater: out_ << "> ("; break;
+                    case BinaryOp::GreaterEqual: out_ << ">= ("; break;
+                    default: break;
+                }
+                emit_expression(*bin->right);
+                out_ << ").raw)";
+            }
+            return;
+        } else if (aerospace_profile_ && (bin->op == BinaryOp::Add || bin->op == BinaryOp::Sub ||
                                    bin->op == BinaryOp::Mul || bin->op == BinaryOp::Div)) {
             const char* fn_name = "";
             if (bin->evaluated_type.kind == BaseTypeKind::F32) {
@@ -859,6 +974,12 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << ")";
         }
     } else if (auto* un = dynamic_cast<const UnaryExpr*>(&expr)) {
+        if (un->op == UnaryOp::Negate && un->operand->evaluated_type.name == "Q16_16") {
+            out_ << "__oxide_q16_neg(";
+            emit_expression(*un->operand);
+            out_ << ")";
+            return;
+        }
         if ((un->op == UnaryOp::Ref || un->op == UnaryOp::RefMut) && un->operand->evaluated_type.kind == BaseTypeKind::Array) {
             out_ << "(";
             emit_expression(*un->operand);
@@ -1052,6 +1173,42 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << "( (";
             emit_expression(*mc->receiver);
             out_ << ").address )";
+            return;
+        }
+        if (mc->resolved_callee == "Q16_16__to_int") {
+            out_ << "Q16_16__to_int(&(";
+            emit_expression(*mc->receiver);
+            out_ << "))";
+            return;
+        }
+        if (mc->resolved_callee == "Q16_16__raw") {
+            out_ << "Q16_16__raw(&(";
+            emit_expression(*mc->receiver);
+            out_ << "))";
+            return;
+        }
+        if (mc->resolved_callee == "Q16_16__saturating_add") {
+            out_ << "__oxide_q16_add(";
+            emit_expression(*mc->receiver);
+            out_ << ", ";
+            emit_expression(*mc->arguments[0]);
+            out_ << ", true)";
+            return;
+        }
+        if (mc->resolved_callee == "Q16_16__saturating_sub") {
+            out_ << "__oxide_q16_sub(";
+            emit_expression(*mc->receiver);
+            out_ << ", ";
+            emit_expression(*mc->arguments[0]);
+            out_ << ", true)";
+            return;
+        }
+        if (mc->resolved_callee == "Q16_16__saturating_mul") {
+            out_ << "__oxide_q16_mul(";
+            emit_expression(*mc->receiver);
+            out_ << ", ";
+            emit_expression(*mc->arguments[0]);
+            out_ << ", true)";
             return;
         }
         if (mc->resolved_callee == "Option__is_some") {

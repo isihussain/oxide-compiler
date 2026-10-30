@@ -39,6 +39,7 @@ def run():
         ("examples/21_software_tmr.rs", 42, ["--profile=aerospace"]),
         ("examples/22_mission_state_machine.rs", 42, []),
         ("examples/23_mmio_volatile_barriers.rs", 42, ["--profile=aerospace"]),
+        ("examples/24_fixed_point_q16.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -120,6 +121,8 @@ def run():
         ("tests/ui/fail_mmio_write_readonly.rs", "cannot write to ReadOnly register", []),
         ("tests/ui/fail_mmio_read_writeonly.rs", "cannot read from WriteOnly register", []),
         ("tests/ui/fail_mmio_missing_barrier.rs", "missing memory barrier between consecutive volatile register writes", ["--profile=aerospace"]),
+        ("tests/ui/fail_fixed_point_div_by_zero.rs", "division by zero: fixed-point divisor is 0", []),
+        ("tests/ui/fail_fixed_point_type_mismatch.rs", "mismatched types in fixed-point arithmetic", []),
     ]
 
     for item in negative_tests:
