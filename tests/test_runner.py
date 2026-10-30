@@ -51,6 +51,7 @@ def run():
         ("examples/33_adcs_quaternion_norm.rs", 42, ["--profile=aerospace"]),
         ("examples/34_software_bus_pubsub.rs", 42, ["--profile=aerospace"]),
         ("examples/35_watchdog_task_strobe.rs", 42, ["--profile=aerospace"]),
+        ("examples/36_sensor_fdir_isolation.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -168,6 +169,10 @@ def run():
         ("tests/ui/fail_watchdog_task_out_of_bounds.rs", "invalid watchdog task ID (5): must be within range [0..3]", []),
         ("tests/ui/fail_watchdog_deadline_zero.rs", "invalid watchdog deadline (0): deadline_ticks must be strictly positive", []),
         ("tests/ui/fail_watchdog_immutable_strobe.rs", "cannot borrow immutable local variable 'wd' as mutable in method call", []),
+        ("tests/ui/fail_fdir_bounds_inverted.rs", "invalid sensor FDIR bounds: min_val (500) exceeds max_val (-500)", []),
+        ("tests/ui/fail_fdir_threshold_inverted.rs", "invalid sensor FDIR thresholds: isolate_threshold (3) must exceed degrade_threshold (6)", []),
+        ("tests/ui/fail_fdir_degrade_zero.rs", "invalid sensor FDIR degrade_threshold (0): must be positive", []),
+        ("tests/ui/fail_fdir_immutable_update.rs", "cannot borrow immutable local variable 'fdir' as mutable in method call", []),
     ]
 
     for item in negative_tests:

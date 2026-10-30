@@ -141,6 +141,18 @@ void TypeChecker::register_structs() {
     }, {"w", "x", "y", "z"}, SourceLocation{0, 0}};
     struct_table_["SoftwareBus"] = StructSignature{"SoftwareBus", {}, {}, {}, SourceLocation{0, 0}};
     struct_table_["WatchdogMonitor"] = StructSignature{"WatchdogMonitor", {}, {}, {}, SourceLocation{0, 0}};
+    struct_table_["SensorFDIR"] = StructSignature{"SensorFDIR", {}, {
+        {"min_val", Type{BaseTypeKind::I32, false, false}},
+        {"max_val", Type{BaseTypeKind::I32, false, false}},
+        {"degrade_threshold", Type{BaseTypeKind::I32, false, false}},
+        {"isolate_threshold", Type{BaseTypeKind::I32, false, false}},
+        {"recovery_threshold", Type{BaseTypeKind::I32, false, false}},
+        {"state", Type{BaseTypeKind::I32, false, false}},
+        {"anomaly_count", Type{BaseTypeKind::I32, false, false}},
+        {"healthy_count", Type{BaseTypeKind::I32, false, false}},
+        {"last_valid_sample", Type{BaseTypeKind::I32, false, false}},
+        {"total_anomalies", Type{BaseTypeKind::I32, false, false}}
+    }, {"min_val", "max_val", "degrade_threshold", "isolate_threshold", "recovery_threshold", "state", "anomaly_count", "healthy_count", "last_valid_sample", "total_anomalies"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1474,6 +1486,44 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "SensorFDIR::new") {
+            if (call->arguments.size() != 5) {
+                emit_error(call->location, "SensorFDIR::new takes exactly 5 arguments (min_val, max_val, degrade_threshold, isolate_threshold, recovery_threshold)");
+            } else {
+                for (size_t i = 0; i < 5; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "SensorFDIR parameter must be 'i32'");
+                    }
+                }
+                int64_t min_v = 0, max_v = 0, deg = 0, iso = 0, rec = 0;
+                bool b_min = extract_const_int(call->arguments[0].get(), min_v);
+                bool b_max = extract_const_int(call->arguments[1].get(), max_v);
+                bool b_deg = extract_const_int(call->arguments[2].get(), deg);
+                bool b_iso = extract_const_int(call->arguments[3].get(), iso);
+                bool b_rec = extract_const_int(call->arguments[4].get(), rec);
+
+                if (b_min && b_max && min_v > max_v) {
+                    emit_error(call->location, "invalid sensor FDIR bounds: min_val (" + std::to_string(min_v) +
+                               ") exceeds max_val (" + std::to_string(max_v) + ")");
+                }
+                if (b_deg && deg <= 0) {
+                    emit_error(call->location, "invalid sensor FDIR degrade_threshold (" + std::to_string(deg) +
+                               "): must be positive");
+                }
+                if (b_deg && b_iso && iso <= deg) {
+                    emit_error(call->location, "invalid sensor FDIR thresholds: isolate_threshold (" + std::to_string(iso) +
+                               ") must exceed degrade_threshold (" + std::to_string(deg) + ")");
+                }
+                if (b_rec && rec <= 0) {
+                    emit_error(call->location, "invalid sensor FDIR recovery_threshold (" + std::to_string(rec) +
+                               "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "SensorFDIR", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -2788,6 +2838,95 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "WatchdogMonitor::reset_trip takes 0 arguments");
                 }
                 mc->resolved_callee = "WatchdogMonitor__reset_trip";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "SensorFDIR") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SensorFDIR::update takes exactly 1 argument (raw_sample)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SensorFDIR::update raw_sample must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "SensorFDIR__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "state") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::state takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__state";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_healthy") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::is_healthy takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__is_healthy";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_degraded") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::is_degraded takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__is_degraded";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_isolated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::is_isolated takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__is_isolated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "anomaly_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::anomaly_count takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__anomaly_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "total_anomalies") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::total_anomalies takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__total_anomalies";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "last_valid") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::last_valid takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__last_valid";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SensorFDIR::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "SensorFDIR__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
                 return mc->evaluated_type;
