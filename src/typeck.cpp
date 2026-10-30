@@ -98,6 +98,15 @@ void TypeChecker::register_structs() {
         {"min_bound", Type{BaseTypeKind::I32, false, false}},
         {"max_bound", Type{BaseTypeKind::I32, false, false}}
     }, {"current_position", "max_rate", "min_bound", "max_bound"}, SourceLocation{0, 0}};
+    struct_table_["SafetyCorridor"] = StructSignature{"SafetyCorridor", {}, {
+        {"min_x", Type{BaseTypeKind::I32, false, false}},
+        {"max_x", Type{BaseTypeKind::I32, false, false}},
+        {"min_y", Type{BaseTypeKind::I32, false, false}},
+        {"max_y", Type{BaseTypeKind::I32, false, false}},
+        {"min_z", Type{BaseTypeKind::I32, false, false}},
+        {"max_z", Type{BaseTypeKind::I32, false, false}},
+        {"max_velocity", Type{BaseTypeKind::I32, false, false}}
+    }, {"min_x", "max_x", "min_y", "max_y", "min_z", "max_z", "max_velocity"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -532,6 +541,23 @@ void TypeChecker::check_statement(Statement& stmt) {
             } else {
                 deduced_type = init_type;
                 let->declared_type = init_type;
+            }
+        }
+        if (let->initializer) {
+            if (auto* call = dynamic_cast<CallExpr*>(let->initializer.get())) {
+                if (call->callee == "SafetyCorridor::new" && call->arguments.size() == 7) {
+                    int64_t min_x = 0, max_x = 0, min_y = 0, max_y = 0, min_z = 0, max_z = 0, max_v = 0;
+                    bool b1 = extract_const_int(call->arguments[0].get(), min_x);
+                    bool b2 = extract_const_int(call->arguments[1].get(), max_x);
+                    bool b3 = extract_const_int(call->arguments[2].get(), min_y);
+                    bool b4 = extract_const_int(call->arguments[3].get(), max_y);
+                    bool b5 = extract_const_int(call->arguments[4].get(), min_z);
+                    bool b6 = extract_const_int(call->arguments[5].get(), max_z);
+                    bool b7 = extract_const_int(call->arguments[6].get(), max_v);
+                    if (b1 && b2 && b3 && b4 && b5 && b6 && b7) {
+                        corridor_vars_[let->var_name] = SafetyCorridorBounds{min_x, max_x, min_y, max_y, min_z, max_z, max_v};
+                    }
+                }
             }
         }
         declare_variable(let->var_name, deduced_type, let->is_mutable, let->location);
@@ -1197,6 +1223,49 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "SafetyCorridor::new") {
+            if (call->arguments.size() != 7) {
+                emit_error(call->location, "SafetyCorridor::new takes exactly 7 arguments (min_x, max_x, min_y, max_y, min_z, max_z, max_velocity)");
+            } else {
+                for (size_t i = 0; i < 7; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "SafetyCorridor parameter must be 'i32'");
+                    }
+                }
+                int64_t min_x = 0, max_x = 0, min_y = 0, max_y = 0, min_z = 0, max_z = 0, max_v = 0;
+                bool has_min_x = extract_const_int(call->arguments[0].get(), min_x);
+                bool has_max_x = extract_const_int(call->arguments[1].get(), max_x);
+                bool has_min_y = extract_const_int(call->arguments[2].get(), min_y);
+                bool has_max_y = extract_const_int(call->arguments[3].get(), max_y);
+                bool has_min_z = extract_const_int(call->arguments[4].get(), min_z);
+                bool has_max_z = extract_const_int(call->arguments[5].get(), max_z);
+                bool has_max_v = extract_const_int(call->arguments[6].get(), max_v);
+
+                if (has_min_x && has_max_x && min_x >= max_x) {
+                    emit_error(call->location, "invalid safety corridor: min_x (" +
+                               std::to_string(min_x) + ") must be strictly less than max_x (" +
+                               std::to_string(max_x) + ")");
+                }
+                if (has_min_y && has_max_y && min_y >= max_y) {
+                    emit_error(call->location, "invalid safety corridor: min_y (" +
+                               std::to_string(min_y) + ") must be strictly less than max_y (" +
+                               std::to_string(max_y) + ")");
+                }
+                if (has_min_z && has_max_z && min_z >= max_z) {
+                    emit_error(call->location, "invalid safety corridor: min_z (" +
+                               std::to_string(min_z) + ") must be strictly less than max_z (" +
+                               std::to_string(max_z) + ")");
+                }
+                if (has_max_v && max_v <= 0) {
+                    emit_error(call->location, "invalid safety corridor: max_velocity (" +
+                               std::to_string(max_v) + ") must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "SafetyCorridor", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -1599,6 +1668,93 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "SlewRateLimiter__is_saturated";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "SafetyCorridor") {
+            if (mc->method_name == "is_inside") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "SafetyCorridor::is_inside takes exactly 3 arguments (x, y, z)");
+                } else {
+                    for (size_t i = 0; i < 3; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "SafetyCorridor::is_inside arguments must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SafetyCorridor__is_inside";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "check") {
+                if (mc->arguments.size() != 6) {
+                    emit_error(mc->location, "SafetyCorridor::check takes exactly 6 arguments (x, y, z, vx, vy, vz)");
+                } else {
+                    for (size_t i = 0; i < 6; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "SafetyCorridor::check arguments must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SafetyCorridor__check";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "verify_or_terminate") {
+                if (mc->arguments.size() != 6) {
+                    emit_error(mc->location, "SafetyCorridor::verify_or_terminate takes exactly 6 arguments (x, y, z, vx, vy, vz)");
+                } else {
+                    for (size_t i = 0; i < 6; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "SafetyCorridor::verify_or_terminate arguments must be 'i32'");
+                        }
+                    }
+
+                    if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                        auto it = corridor_vars_.find(var->name);
+                        if (it != corridor_vars_.end()) {
+                            const auto& bounds = it->second;
+                            int64_t x = 0, y = 0, z = 0, vx = 0, vy = 0, vz = 0;
+                            bool has_x = extract_const_int(mc->arguments[0].get(), x);
+                            bool has_y = extract_const_int(mc->arguments[1].get(), y);
+                            bool has_z = extract_const_int(mc->arguments[2].get(), z);
+                            bool has_vx = extract_const_int(mc->arguments[3].get(), vx);
+                            bool has_vy = extract_const_int(mc->arguments[4].get(), vy);
+                            bool has_vz = extract_const_int(mc->arguments[5].get(), vz);
+
+                            if (has_x && (x < bounds.min_x || x > bounds.max_x)) {
+                                emit_error(mc->location, "AFTS safety corridor breach detected: position x (" +
+                                           std::to_string(x) + ") exceeds corridor limits [" +
+                                           std::to_string(bounds.min_x) + ", " + std::to_string(bounds.max_x) + "]");
+                            } else if (has_y && (y < bounds.min_y || y > bounds.max_y)) {
+                                emit_error(mc->location, "AFTS safety corridor breach detected: position y (" +
+                                           std::to_string(y) + ") exceeds corridor limits [" +
+                                           std::to_string(bounds.min_y) + ", " + std::to_string(bounds.max_y) + "]");
+                            } else if (has_z && (z < bounds.min_z || z > bounds.max_z)) {
+                                emit_error(mc->location, "AFTS safety corridor breach detected: position z (" +
+                                           std::to_string(z) + ") exceeds corridor limits [" +
+                                           std::to_string(bounds.min_z) + ", " + std::to_string(bounds.max_z) + "]");
+                            } else if (has_vx && has_vy && has_vz) {
+                                int64_t v2 = vx * vx + vy * vy + vz * vz;
+                                int64_t max_v2 = bounds.max_velocity * bounds.max_velocity;
+                                if (v2 > max_v2) {
+                                    emit_error(mc->location, "AFTS safety corridor breach detected: velocity magnitude squared (" +
+                                               std::to_string(v2) + ") exceeds maximum limit (" +
+                                               std::to_string(max_v2) + ")");
+                                }
+                            }
+                        }
+                    }
+                }
+                mc->resolved_callee = "SafetyCorridor__verify_or_terminate";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;
             }
         }

@@ -42,6 +42,7 @@ def run():
         ("examples/24_fixed_point_q16.rs", 42, ["--profile=aerospace"]),
         ("examples/25_realtime_wcet_budget.rs", 42, ["--profile=aerospace"]),
         ("examples/26_actuator_slew_limiter.rs", 42, ["--profile=aerospace"]),
+        ("examples/27_afts_corridor_geofence.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -130,6 +131,10 @@ def run():
         ("tests/ui/fail_actuator_bounds_inverted.rs", "invalid actuator configuration: min_bound (10000) must be strictly less than max_bound (-10000)", []),
         ("tests/ui/fail_actuator_rate_negative.rs", "invalid actuator configuration: max_rate (-500) must be positive", []),
         ("tests/ui/fail_actuator_initial_out_of_bounds.rs", "invalid actuator configuration: initial_pos (15000) exceeds physical bounds [-10000, 10000]", []),
+        ("tests/ui/fail_afts_corridor_inverted.rs", "invalid safety corridor: min_x (2000) must be strictly less than max_x (-2000)", []),
+        ("tests/ui/fail_afts_velocity_negative.rs", "invalid safety corridor: max_velocity (-500) must be positive", []),
+        ("tests/ui/fail_afts_static_breach_pos.rs", "AFTS safety corridor breach detected: position x (3500) exceeds corridor limits [-2000, 2000]", []),
+        ("tests/ui/fail_afts_static_breach_vel.rs", "AFTS safety corridor breach detected: velocity magnitude squared (12800) exceeds maximum limit (10000)", []),
     ]
 
     for item in negative_tests:

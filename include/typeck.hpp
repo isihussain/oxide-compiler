@@ -50,6 +50,19 @@ struct EnumSignature {
 };
 
 /**
+ * @brief Safety corridor boundary envelope for Autonomous Flight Termination System (AFTS).
+ */
+struct SafetyCorridorBounds {
+    int64_t min_x = 0;
+    int64_t max_x = 0;
+    int64_t min_y = 0;
+    int64_t max_y = 0;
+    int64_t min_z = 0;
+    int64_t max_z = 0;
+    int64_t max_velocity = 0;
+};
+
+/**
  * @brief Definition metadata for mission flight state machines.
  */
 struct StateMachineSignature {
@@ -144,6 +157,7 @@ private:
     std::map<std::string, EnumSignature> enum_table_;
     std::map<std::string, StateMachineSignature> state_machine_table_;
     std::map<std::string, FunctionSignature> function_table_;
+    std::map<std::string, SafetyCorridorBounds> corridor_vars_;
     std::vector<std::map<std::string, std::pair<Type, bool>>> scopes_; // name -> (Type, is_mut)
     std::optional<Type> current_function_return_type_;
     std::vector<std::string> errors_;
