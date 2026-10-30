@@ -63,6 +63,14 @@ struct SafetyCorridorBounds {
 };
 
 /**
+ * @brief Stage physical mass tracking record for dry mass invariant enforcement.
+ */
+struct StageMassRecord {
+    int64_t dry_mass = 0;
+    int64_t propellant_mass = 0;
+};
+
+/**
  * @brief Definition metadata for mission flight state machines.
  */
 struct StateMachineSignature {
@@ -158,6 +166,7 @@ private:
     std::map<std::string, StateMachineSignature> state_machine_table_;
     std::map<std::string, FunctionSignature> function_table_;
     std::map<std::string, SafetyCorridorBounds> corridor_vars_;
+    std::map<std::string, StageMassRecord> stage_vars_;
     std::vector<std::map<std::string, std::pair<Type, bool>>> scopes_; // name -> (Type, is_mut)
     std::optional<Type> current_function_return_type_;
     std::vector<std::string> errors_;

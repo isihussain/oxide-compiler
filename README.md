@@ -59,6 +59,7 @@ Rust Source (.rs)
 * **Actuator Slew-Rate Limiter (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Enforces rate-of-change limits on thrust vector control (TVC) gimbals and aerodynamic control surfaces to prevent hydraulic pump cavitation, structural load exceedances, and aerodynamic stall. Statically validates mechanical limits `[min_bound, max_bound]`, non-negative rates, and initial positioning; deterministically clamps actuator position updates at runtime.
 * **AFTS Safety Corridor Geofencing Verifier (`include/typeck.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Verifies launch vehicle position and velocity vectors against authorized 3D range safety corridor boundaries (`[min_x, max_x]`, `[min_y, max_y]`, `[min_z, max_z]`, and `max_velocity`). Performs compile-time interval analysis on trajectory waypoints and emits immediate flight termination abort traps upon boundary or velocity breaches.
 * **Lock-Free SPSC Ring Buffer (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Implements single-producer single-consumer circular telemetry buffers (`SpscRingBuffer`) without heap allocations or thread locks. Guarantees FIFO order with atomic acquire/release memory barriers and non-blocking backpressure under `--profile=aerospace`.
+* **Stage Mass & Propellant Depletion Verifier (`include/typeck.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Tracks rocket stage mass invariants (`StageMass`) during ascent and landing burns. Enforces non-negative propellant mass, prevents vehicle mass from breaching structural dry mass ($m_{\text{total}} \ge m_{\text{dry}}$), and emits runtime abort traps if burns exceed remaining propellant.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations and dead code elimination following early returns.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
@@ -253,7 +254,7 @@ Results: 78/78 tests passed.
   - [x] Actuator slew-rate limiter and physical gimbal angle boundary enforcement
   - [x] Autonomous Flight Termination System (AFTS) corridor geofencing verification
   - [x] Lock-free zero-allocation Single-Producer Single-Consumer (SPSC) telemetry ring buffer
-  - [ ] Physical dry mass lower bound invariants and propellant depletion verification
+  - [x] Physical dry mass lower bound invariants and propellant depletion verification
   - [ ] Bit-packed zero-copy telemetry packet serialization and CRC verification
 
 ---

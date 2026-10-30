@@ -112,6 +112,10 @@ void TypeChecker::register_structs() {
         {"tail", Type{BaseTypeKind::I32, false, false}},
         {"capacity", Type{BaseTypeKind::I32, false, false}}
     }, {"head", "tail", "capacity"}, SourceLocation{0, 0}};
+    struct_table_["StageMass"] = StructSignature{"StageMass", {}, {
+        {"dry_mass", Type{BaseTypeKind::I32, false, false}},
+        {"propellant_mass", Type{BaseTypeKind::I32, false, false}}
+    }, {"dry_mass", "propellant_mass"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -561,6 +565,14 @@ void TypeChecker::check_statement(Statement& stmt) {
                     bool b7 = extract_const_int(call->arguments[6].get(), max_v);
                     if (b1 && b2 && b3 && b4 && b5 && b6 && b7) {
                         corridor_vars_[let->var_name] = SafetyCorridorBounds{min_x, max_x, min_y, max_y, min_z, max_z, max_v};
+                    }
+                }
+                if (call->callee == "StageMass::new" && call->arguments.size() == 2) {
+                    int64_t dry = 0, prop = 0;
+                    bool b1 = extract_const_int(call->arguments[0].get(), dry);
+                    bool b2 = extract_const_int(call->arguments[1].get(), prop);
+                    if (b1 && b2) {
+                        stage_vars_[let->var_name] = StageMassRecord{dry, prop};
                     }
                 }
             }
@@ -1291,6 +1303,32 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "StageMass::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "StageMass::new takes exactly 2 arguments (dry_mass, initial_propellant)");
+            } else {
+                for (size_t i = 0; i < 2; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "StageMass parameter must be 'i32'");
+                    }
+                }
+                int64_t dry = 0, prop = 0;
+                bool has_dry = extract_const_int(call->arguments[0].get(), dry);
+                bool has_prop = extract_const_int(call->arguments[1].get(), prop);
+                if (has_dry && dry <= 0) {
+                    emit_error(call->location, "invalid stage mass configuration: dry_mass (" +
+                               std::to_string(dry) + ") must be positive");
+                }
+                if (has_prop && prop < 0) {
+                    emit_error(call->location, "invalid stage mass configuration: initial_propellant (" +
+                               std::to_string(prop) + ") cannot be negative");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "StageMass", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -1841,6 +1879,78 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
                 mc->resolved_callee = "SpscRingBuffer__capacity";
                 mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "StageMass") {
+            if (mc->method_name == "dry_mass") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "StageMass::dry_mass takes 0 arguments");
+                }
+                mc->resolved_callee = "StageMass__dry_mass";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "propellant_mass") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "StageMass::propellant_mass takes 0 arguments");
+                }
+                mc->resolved_callee = "StageMass__propellant_mass";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "total_mass") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "StageMass::total_mass takes 0 arguments");
+                }
+                mc->resolved_callee = "StageMass__total_mass";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_depleted") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "StageMass::is_depleted takes 0 arguments");
+                }
+                mc->resolved_callee = "StageMass__is_depleted";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "burn") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "StageMass::burn takes exactly 1 argument (mass_burned)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "StageMass::burn argument must be 'i32'");
+                    }
+
+                    int64_t burned = 0;
+                    if (extract_const_int(mc->arguments[0].get(), burned)) {
+                        if (burned < 0) {
+                            emit_error(mc->location, "cannot burn negative propellant mass (" +
+                                       std::to_string(burned) + ")");
+                        } else if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                            auto it = stage_vars_.find(var->name);
+                            if (it != stage_vars_.end()) {
+                                if (burned > it->second.propellant_mass) {
+                                    emit_error(mc->location, "physical dry mass invariant violated: burn amount (" +
+                                               std::to_string(burned) + ") exceeds available propellant (" +
+                                               std::to_string(it->second.propellant_mass) + ")");
+                                } else {
+                                    it->second.propellant_mass -= burned;
+                                }
+                            }
+                        }
+                    }
+                }
+                mc->resolved_callee = "StageMass__burn";
+                mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;
             }
