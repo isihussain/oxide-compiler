@@ -36,6 +36,7 @@ std::string CCodeGenerator::map_type(const Type& type) {
         }
         case BaseTypeKind::Named: base = type.name; break;
         case BaseTypeKind::GenericParam: base = type.name; break;
+        case BaseTypeKind::PhysicalUnit: base = "int32_t"; break;
     }
     if (type.is_ref) {
         if (type.is_mut_ref) {

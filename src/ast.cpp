@@ -37,6 +37,11 @@ std::string Type::to_string() const {
             break;
         }
         case BaseTypeKind::GenericParam: s += name; break;
+        case BaseTypeKind::PhysicalUnit: {
+            std::string unit = dimension.to_unit_name();
+            s += unit.empty() ? (name.empty() ? "Unit" : name) : unit;
+            break;
+        }
     }
     return s;
 }
@@ -64,6 +69,10 @@ std::string Type::mangled_name() const {
             break;
         }
         case BaseTypeKind::GenericParam: s = name; break;
+        case BaseTypeKind::PhysicalUnit: {
+            s = "unit_" + dimension.to_unit_name();
+            break;
+        }
     }
     return s;
 }

@@ -20,13 +20,45 @@ enum class BaseTypeKind {
     Slice,        ///< Dynamically-sized slice view &[T]
     Named,        ///< Nominal user-defined struct or enum (e.g., Point, Status, Option)
     GenericParam, ///< Unbound type parameter during generic definition (e.g., T, E)
+    PhysicalUnit, ///< SI physical unit dimension (e.g., Meter, Second, Kilogram, Newton, Pascal)
+};
+
+/**
+ * @brief Exponent tuple (M^m * L^l * T^t) for compile-time dimensional analysis.
+ *
+ * M: Mass (kg), L: Length (meter), T: Time (second).
+ */
+struct PhysicalDimension {
+    int8_t m = 0; ///< Mass exponent (Kilogram)
+    int8_t l = 0; ///< Length exponent (Meter)
+    int8_t t = 0; ///< Time exponent (Second)
+
+    bool is_dimensionless() const { return m == 0 && l == 0 && t == 0; }
+    bool operator==(const PhysicalDimension& other) const = default;
+
+    std::string to_unit_name() const {
+        if (m == 0 && l == 1 && t == 0) return "Meter";
+        if (m == 0 && l == 0 && t == 1) return "Second";
+        if (m == 1 && l == 0 && t == 0) return "Kilogram";
+        if (m == 0 && l == 1 && t == -1) return "Mps";
+        if (m == 0 && l == 1 && t == -2) return "Mps2";
+        if (m == 1 && l == 1 && t == -2) return "Newton";
+        if (m == 1 && l == -1 && t == -2) return "Pascal";
+        if (m == 1 && l == 2 && t == -2) return "Joule";
+        if (is_dimensionless()) return "i32";
+        std::string s;
+        if (m != 0) s += "Kg^" + std::to_string(m);
+        if (l != 0) { if (!s.empty()) s += "*"; s += "m^" + std::to_string(l); }
+        if (t != 0) { if (!s.empty()) s += "*"; s += "s^" + std::to_string(t); }
+        return s;
+    }
 };
 
 /**
  * @brief Canonical type representation in Oxide.
  *
  * Encapsulates the kind, nominal name, generic arguments, reference qualification,
- * mutability, and array length. Supports C++20 default operator== for structural equality.
+ * mutability, array length, and physical unit dimension.
  */
 struct Type {
     BaseTypeKind kind = BaseTypeKind::Unit;
@@ -35,14 +67,30 @@ struct Type {
     bool is_ref = false;                 ///< True if this is an immutable reference (&T).
     bool is_mut_ref = false;             ///< True if this is a mutable reference (&mut T).
     size_t array_size = 0;               ///< Element count for BaseTypeKind::Array.
+    PhysicalDimension dimension;         ///< SI exponents for BaseTypeKind::PhysicalUnit.
 
     Type() = default;
     Type(BaseTypeKind k, std::string n = "", bool r = false, bool mr = false, std::vector<Type> args = {}, size_t arr_sz = 0)
         : kind(k), name(std::move(n)), type_args(std::move(args)), is_ref(r), is_mut_ref(mr), array_size(arr_sz) {}
     Type(BaseTypeKind k, bool r, bool mr)
         : kind(k), name(""), is_ref(r), is_mut_ref(mr), array_size(0) {}
+    Type(BaseTypeKind k, PhysicalDimension dim, std::string n = "")
+        : kind(k), name(std::move(n)), dimension(dim) {}
 
-    bool operator==(const Type& other) const = default;
+    bool operator==(const Type& other) const {
+        if (kind != other.kind) return false;
+        if (is_ref != other.is_ref || is_mut_ref != other.is_mut_ref) return false;
+        if (kind == BaseTypeKind::PhysicalUnit) {
+            return dimension == other.dimension;
+        }
+        if (kind == BaseTypeKind::Array) {
+            return array_size == other.array_size && type_args == other.type_args;
+        }
+        if (kind == BaseTypeKind::Slice) {
+            return type_args == other.type_args;
+        }
+        return name == other.name && type_args == other.type_args;
+    }
 
     /**
      * @brief Produces the idiomatic Rust string syntax (e.g. '&mut Point', '[i32; 4]', 'Option<i32>').

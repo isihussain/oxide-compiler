@@ -402,6 +402,47 @@ Type Parser::parse_type() {
             type.name = "str";
             return type;
         }
+        if (name == "Meter") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Meter";
+            type.dimension = PhysicalDimension{0, 1, 0};
+            return type;
+        } else if (name == "Second") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Second";
+            type.dimension = PhysicalDimension{0, 0, 1};
+            return type;
+        } else if (name == "Kilogram" || name == "Kg") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Kilogram";
+            type.dimension = PhysicalDimension{1, 0, 0};
+            return type;
+        } else if (name == "Mps") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Mps";
+            type.dimension = PhysicalDimension{0, 1, -1};
+            return type;
+        } else if (name == "Mps2") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Mps2";
+            type.dimension = PhysicalDimension{0, 1, -2};
+            return type;
+        } else if (name == "Newton") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Newton";
+            type.dimension = PhysicalDimension{1, 1, -2};
+            return type;
+        } else if (name == "Pascal") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Pascal";
+            type.dimension = PhysicalDimension{1, -1, -2};
+            return type;
+        } else if (name == "Joule") {
+            type.kind = BaseTypeKind::PhysicalUnit;
+            type.name = "Joule";
+            type.dimension = PhysicalDimension{1, 2, -2};
+            return type;
+        }
         if (name == "Self" && !current_target_type_.empty()) {
             name = current_target_type_;
         }

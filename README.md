@@ -136,6 +136,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 16_for_in_loops.rs (exit code: 42)
 [PASS] 17_standard_core_option_result.rs (exit code: 42)
 [PASS] 18_constant_folding.rs (exit code: 42)
+[PASS] 19_dimensional_analysis.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -174,8 +175,11 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_aerospace_unbounded_loop.rs (correctly rejected)
 [PASS] fail_aerospace_heap_allocation.rs (correctly rejected)
 [PASS] fail_dead_code_type_still_checked.rs (correctly rejected)
+[PASS] fail_dimension_add_mismatch.rs (correctly rejected)
+[PASS] fail_dimension_compare_mismatch.rs (correctly rejected)
+[PASS] fail_dimension_assign_mismatch.rs (correctly rejected)
 ==================================================
-Results: 56/56 tests passed.
+Results: 60/60 tests passed.
 ```
 
 ---
@@ -205,8 +209,20 @@ Results: 56/56 tests passed.
   - [x] Control Flow Graph (CFG) basic block lowering with explicit terminators
   - [x] Backward dataflow liveness analysis
   - [x] Non-Lexical Lifetimes (NLL) borrow checking and loan invalidation
-- [ ] **Milestone 5: Standalone Core Library Compilation**
-  - [ ] Target Rust `core` library compilation
+- [x] **Milestone 5: Standard Core Foundation & Aerospace Enhancements**
+  - [x] Fixed-size arrays and slices (`[T; N]`, `&[T]`)
+  - [x] Strings and built-in formatted I/O (`&str`, `println!`, `assert!`, `panic!`)
+  - [x] Range expressions and `for in` loops (`start..end`)
+  - [x] Standard `Option<T>` and `Result<T, E>` enums and methods
+  - [x] NASA/JPL Flight Software Rule 1 (bounded loops) and Rule 2 (dynamic heap ban)
+  - [x] Compile-time constant folding and dead code elimination pass
+- [ ] **Milestone 6: Mission-Critical Aerospace Safety Systems**
+  - [x] Compile-time dimensional analysis and SI unit types (Mars Climate Orbiter mitigation)
+  - [ ] Floating-point flight safety and static NaN/Infinity propagation analysis
+  - [ ] Software Triple Modular Redundancy (TMR) for cosmic radiation SEU mitigation
+  - [ ] Verifiable mission flight state machines with deadlock and abort verification
+  - [ ] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers
+  - [ ] Deterministic fixed-point arithmetic (Q-format) for backup flight controllers
 
 ---
 

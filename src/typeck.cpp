@@ -337,7 +337,12 @@ void TypeChecker::check_statement(Statement& stmt) {
         if (let->initializer) {
             Type init_type = check_expression(*let->initializer);
             if (let->declared_type.kind != BaseTypeKind::Unit) {
-                if (!(let->declared_type == init_type)) {
+                bool is_lit_init = (let->declared_type.kind == BaseTypeKind::PhysicalUnit &&
+                                    init_type.kind == BaseTypeKind::I32 &&
+                                    dynamic_cast<IntegerLiteralExpr*>(let->initializer.get()) != nullptr);
+                if (is_lit_init) {
+                    let->initializer->evaluated_type = let->declared_type;
+                } else if (!(let->declared_type == init_type)) {
                     emit_error(let->location, "mismatched types in 'let': expected '" +
                                let->declared_type.to_string() + "', found '" +
                                init_type.to_string() + "'");
@@ -462,12 +467,84 @@ Type TypeChecker::check_expression(Expression& expr) {
 
         switch (bin->op) {
             case BinaryOp::Add:
-            case BinaryOp::Sub:
-            case BinaryOp::Mul:
-            case BinaryOp::Div: {
-                if (left_t.kind != BaseTypeKind::I32 || right_t.kind != BaseTypeKind::I32) {
-                    emit_error(bin->location, "arithmetic operations only supported for 'i32'");
+            case BinaryOp::Sub: {
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
                 }
+                if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
+                    if (!(left_t.dimension == right_t.dimension)) {
+                        emit_error(bin->location, "cannot " + std::string(bin->op == BinaryOp::Add ? "add" : "subtract") +
+                                   " differing physical dimensions '" + left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                    }
+                    bin->evaluated_type = left_t;
+                    return bin->evaluated_type;
+                }
+                if ((left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::I32) ||
+                    (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::PhysicalUnit)) {
+                    emit_error(bin->location, "cannot " + std::string(bin->op == BinaryOp::Add ? "add" : "subtract") +
+                               " dimensionless scalar 'i32' to physical dimension '" +
+                               (left_t.kind == BaseTypeKind::PhysicalUnit ? left_t.to_string() : right_t.to_string()) + "'");
+                    bin->evaluated_type = left_t.kind == BaseTypeKind::PhysicalUnit ? left_t : right_t;
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "arithmetic operations only supported for 'i32' and physical units");
+                bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return bin->evaluated_type;
+            }
+            case BinaryOp::Mul: {
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::PhysicalUnit) {
+                    bin->evaluated_type = right_t;
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = left_t;
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
+                    PhysicalDimension dim{
+                        (int8_t)(left_t.dimension.m + right_t.dimension.m),
+                        (int8_t)(left_t.dimension.l + right_t.dimension.l),
+                        (int8_t)(left_t.dimension.t + right_t.dimension.t)
+                    };
+                    if (dim.is_dimensionless()) {
+                        bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    } else {
+                        bin->evaluated_type = Type{BaseTypeKind::PhysicalUnit, dim, dim.to_unit_name()};
+                    }
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "multiplication only supported for 'i32' and physical units");
+                bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return bin->evaluated_type;
+            }
+            case BinaryOp::Div: {
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = left_t;
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
+                    PhysicalDimension dim{
+                        (int8_t)(left_t.dimension.m - right_t.dimension.m),
+                        (int8_t)(left_t.dimension.l - right_t.dimension.l),
+                        (int8_t)(left_t.dimension.t - right_t.dimension.t)
+                    };
+                    if (dim.is_dimensionless()) {
+                        bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    } else {
+                        bin->evaluated_type = Type{BaseTypeKind::PhysicalUnit, dim, dim.to_unit_name()};
+                    }
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "division only supported for 'i32' and physical units");
                 bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return bin->evaluated_type;
             }
@@ -484,9 +561,19 @@ Type TypeChecker::check_expression(Expression& expr) {
             case BinaryOp::LessEqual:
             case BinaryOp::Greater:
             case BinaryOp::GreaterEqual: {
-                if (left_t.kind != BaseTypeKind::I32 || right_t.kind != BaseTypeKind::I32) {
-                    emit_error(bin->location, "order comparison only supported for 'i32'");
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
                 }
+                if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
+                    if (!(left_t.dimension == right_t.dimension)) {
+                        emit_error(bin->location, "cannot compare differing physical dimensions '" +
+                                   left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                    }
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "order comparison only supported for 'i32' and identical physical units");
                 bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return bin->evaluated_type;
             }
@@ -497,10 +584,10 @@ Type TypeChecker::check_expression(Expression& expr) {
         Type inner_t = check_expression(*un->operand);
         switch (un->op) {
             case UnaryOp::Negate: {
-                if (inner_t.kind != BaseTypeKind::I32) {
-                    emit_error(un->location, "unary minus only valid on 'i32'");
+                if (inner_t.kind != BaseTypeKind::I32 && inner_t.kind != BaseTypeKind::PhysicalUnit) {
+                    emit_error(un->location, "unary minus only valid on 'i32' or physical units");
                 }
-                un->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                un->evaluated_type = inner_t;
                 return un->evaluated_type;
             }
             case UnaryOp::Not: {
@@ -540,7 +627,12 @@ Type TypeChecker::check_expression(Expression& expr) {
     if (auto* assign = dynamic_cast<AssignExpr*>(&expr)) {
         Type target_t = check_expression(*assign->target);
         Type val_t = check_expression(*assign->value);
-        if (!(target_t == val_t)) {
+        bool is_lit_assign = (target_t.kind == BaseTypeKind::PhysicalUnit &&
+                              val_t.kind == BaseTypeKind::I32 &&
+                              dynamic_cast<IntegerLiteralExpr*>(assign->value.get()) != nullptr);
+        if (is_lit_assign) {
+            assign->value->evaluated_type = target_t;
+        } else if (!(target_t == val_t)) {
             emit_error(assign->location, "mismatched types in assignment: target is '" +
                        target_t.to_string() + "', value is '" + val_t.to_string() + "'");
         }
@@ -632,7 +724,12 @@ Type TypeChecker::check_expression(Expression& expr) {
             for (size_t i = 0; i < call->arguments.size(); ++i) {
                 Type expected_t = substitute_type(sig.param_types[i], subst);
                 Type arg_t = call->arguments[i]->evaluated_type;
-                if (!(arg_t == expected_t)) {
+                bool is_lit = (expected_t.kind == BaseTypeKind::PhysicalUnit &&
+                               arg_t.kind == BaseTypeKind::I32 &&
+                               dynamic_cast<IntegerLiteralExpr*>(call->arguments[i].get()) != nullptr);
+                if (is_lit) {
+                    call->arguments[i]->evaluated_type = expected_t;
+                } else if (!(arg_t == expected_t)) {
                     emit_error(call->arguments[i]->location, "mismatched type in argument " +
                                std::to_string(i + 1) + ": expected '" + expected_t.to_string() +
                                "', found '" + arg_t.to_string() + "'");
@@ -643,7 +740,12 @@ Type TypeChecker::check_expression(Expression& expr) {
         } else {
             for (size_t i = 0; i < call->arguments.size(); ++i) {
                 Type arg_t = check_expression(*call->arguments[i]);
-                if (!(arg_t == sig.param_types[i])) {
+                bool is_lit = (sig.param_types[i].kind == BaseTypeKind::PhysicalUnit &&
+                               arg_t.kind == BaseTypeKind::I32 &&
+                               dynamic_cast<IntegerLiteralExpr*>(call->arguments[i].get()) != nullptr);
+                if (is_lit) {
+                    call->arguments[i]->evaluated_type = sig.param_types[i];
+                } else if (!(arg_t == sig.param_types[i])) {
                     emit_error(call->arguments[i]->location, "mismatched type in argument " +
                                std::to_string(i + 1) + ": expected '" + sig.param_types[i].to_string() +
                                "', found '" + arg_t.to_string() + "'");

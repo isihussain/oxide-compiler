@@ -34,6 +34,7 @@ def run():
         ("examples/16_for_in_loops.rs", 42, []),
         ("examples/17_standard_core_option_result.rs", 42, []),
         ("examples/18_constant_folding.rs", 42, []),
+        ("examples/19_dimensional_analysis.rs", 42, []),
     ]
 
     passed = 0
@@ -98,6 +99,9 @@ def run():
         ("tests/ui/fail_aerospace_unbounded_loop.rs", "unbounded loop detected: NASA/JPL Rule 1", ["--profile=aerospace"]),
         ("tests/ui/fail_aerospace_heap_allocation.rs", "dynamic memory allocation 'malloc' is banned", ["--profile=aerospace"]),
         ("tests/ui/fail_dead_code_type_still_checked.rs", "mismatched types in 'let': expected 'i32', found 'bool'", []),
+        ("tests/ui/fail_dimension_add_mismatch.rs", "cannot add differing physical dimensions 'Meter' and 'Second'", []),
+        ("tests/ui/fail_dimension_compare_mismatch.rs", "cannot compare differing physical dimensions 'Meter' and 'Newton'", []),
+        ("tests/ui/fail_dimension_assign_mismatch.rs", "mismatched types in 'let': expected 'Second', found 'Meter'", []),
     ]
 
     for item in negative_tests:
