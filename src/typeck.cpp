@@ -124,6 +124,15 @@ void TypeChecker::register_structs() {
         {"ch2", Type{BaseTypeKind::I32, false, false}},
         {"ch3", Type{BaseTypeKind::I32, false, false}}
     }, {"packet_id", "timestamp", "ch0", "ch1", "ch2", "ch3"}, SourceLocation{0, 0}};
+    struct_table_["FlightTable"] = StructSignature{"FlightTable", {}, {
+        {"active_val", Type{BaseTypeKind::I32, false, false}},
+        {"staging_val", Type{BaseTypeKind::I32, false, false}},
+        {"staging_loaded", Type{BaseTypeKind::Bool, false, false}},
+        {"staging_verified", Type{BaseTypeKind::Bool, false, false}},
+        {"active_checksum", Type{BaseTypeKind::I32, false, false}},
+        {"staging_checksum", Type{BaseTypeKind::I32, false, false}},
+        {"commit_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"active_val", "staging_val", "staging_loaded", "staging_verified", "active_checksum", "staging_checksum", "commit_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -582,6 +591,18 @@ void TypeChecker::check_statement(Statement& stmt) {
                     if (b1 && b2) {
                         stage_vars_[let->var_name] = StageMassRecord{dry, prop};
                     }
+                }
+                if (call->callee == "FlightTable::new" && call->arguments.size() == 1) {
+                    int64_t init_val = 0;
+                    bool has_init = extract_const_int(call->arguments[0].get(), init_val);
+                    table_vars_[let->var_name] = FlightTableRecord{
+                        has_init ? init_val : 0,
+                        0,
+                        false,
+                        false,
+                        has_init ? (init_val ^ 0x5A5A5A5A) : 0,
+                        0
+                    };
                 }
             }
         }
@@ -1363,6 +1384,33 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "FlightTable::new") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "FlightTable::new takes exactly 1 argument (initial_parameter)");
+            } else {
+                Type t = check_expression(*call->arguments[0]);
+                if (t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "FlightTable initial parameter must be 'i32'");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "FlightTable", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "FlightTable::compute_checksum") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "FlightTable::compute_checksum takes exactly 1 argument (val)");
+            } else {
+                Type t = check_expression(*call->arguments[0]);
+                if (t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "FlightTable::compute_checksum argument must be 'i32'");
+                }
+            }
+            call->callee = "FlightTable__compute_checksum";
+            call->evaluated_type = Type{BaseTypeKind::I32, false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -2063,6 +2111,233 @@ Type TypeChecker::check_expression(Expression& expr) {
                     }
                 }
                 mc->resolved_callee = "TelemetryPacket__verify_or_abort";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "FlightTable") {
+            if (mc->method_name == "load_staging") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "FlightTable::load_staging takes exactly 1 argument (new_val)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "FlightTable::load_staging argument must be 'i32'");
+                    }
+                    if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                        auto it = table_vars_.find(var->name);
+                        if (it != table_vars_.end()) {
+                            it->second.staging_loaded = true;
+                            it->second.staging_verified = false;
+                            int64_t val = 0;
+                            if (extract_const_int(mc->arguments[0].get(), val)) {
+                                it->second.staging_val = val;
+                                it->second.staging_checksum = val ^ 0x5A5A5A5A;
+                            }
+                        }
+                    }
+                }
+                mc->resolved_callee = "FlightTable__load_staging";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "verify_staging") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "FlightTable::verify_staging takes exactly 1 argument (expected_checksum)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "FlightTable::verify_staging argument must be 'i32'");
+                    }
+                    if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                        auto it = table_vars_.find(var->name);
+                        if (it != table_vars_.end()) {
+                            int64_t exp = 0;
+                            if (extract_const_int(mc->arguments[0].get(), exp)) {
+                                if (it->second.staging_loaded && exp != it->second.staging_checksum) {
+                                    emit_error(mc->location, "flight table verification failed: checksum mismatch (expected " +
+                                               std::to_string(exp) + ", computed " + std::to_string(it->second.staging_checksum) + ")");
+                                } else {
+                                    it->second.staging_verified = true;
+                                }
+                            } else {
+                                it->second.staging_verified = true;
+                            }
+                        }
+                    }
+                }
+                mc->resolved_callee = "FlightTable__verify_staging";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "validate_bounds") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "FlightTable::validate_bounds takes exactly 2 arguments (min_val, max_val)");
+                } else {
+                    Type t1 = check_expression(*mc->arguments[0]);
+                    Type t2 = check_expression(*mc->arguments[1]);
+                    if (t1.kind != BaseTypeKind::I32 || t2.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "FlightTable::validate_bounds arguments must be 'i32'");
+                    }
+                    int64_t mn = 0, mx = 0;
+                    bool bmn = extract_const_int(mc->arguments[0].get(), mn);
+                    bool bmx = extract_const_int(mc->arguments[1].get(), mx);
+                    if (bmn && bmx && mn > mx) {
+                        emit_error(mc->location, "invalid flight table bounds: min_val (" + std::to_string(mn) +
+                                   ") exceeds max_val (" + std::to_string(mx) + ")");
+                    }
+                    if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                        auto it = table_vars_.find(var->name);
+                        if (it != table_vars_.end() && it->second.staging_loaded) {
+                            if (bmn && bmx) {
+                                if (it->second.staging_val < mn || it->second.staging_val > mx) {
+                                    emit_error(mc->location, "flight table parameter out of bounds: staging value (" +
+                                               std::to_string(it->second.staging_val) + ") outside valid range [" +
+                                               std::to_string(mn) + ", " + std::to_string(mx) + "]");
+                                } else {
+                                    it->second.staging_verified = true;
+                                }
+                            } else {
+                                it->second.staging_verified = true;
+                            }
+                        }
+                    }
+                }
+                mc->resolved_callee = "FlightTable__validate_bounds";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "commit") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::commit takes 0 arguments");
+                }
+                if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                    auto it = table_vars_.find(var->name);
+                    if (it != table_vars_.end()) {
+                        if (!it->second.staging_loaded) {
+                            emit_error(mc->location, "invalid flight table commit: staging buffer is empty");
+                        } else if (!it->second.staging_verified) {
+                            emit_error(mc->location, "unverified flight table commit: staging buffer has not been verified prior to commit");
+                        } else {
+                            it->second.active_val = it->second.staging_val;
+                            it->second.active_checksum = it->second.staging_checksum;
+                            it->second.staging_loaded = false;
+                            it->second.staging_verified = false;
+                            it->second.staging_val = 0;
+                        }
+                    }
+                }
+                mc->resolved_callee = "FlightTable__commit";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "commit_or_abort") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::commit_or_abort takes 0 arguments");
+                }
+                if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                    auto it = table_vars_.find(var->name);
+                    if (it != table_vars_.end()) {
+                        if (!it->second.staging_loaded) {
+                            emit_error(mc->location, "invalid flight table commit: staging buffer is empty");
+                        } else if (!it->second.staging_verified) {
+                            emit_error(mc->location, "unverified flight table commit: staging buffer has not been verified prior to commit");
+                        } else {
+                            it->second.active_val = it->second.staging_val;
+                            it->second.active_checksum = it->second.staging_checksum;
+                            it->second.staging_loaded = false;
+                            it->second.staging_verified = false;
+                            it->second.staging_val = 0;
+                        }
+                    }
+                }
+                mc->resolved_callee = "FlightTable__commit_or_abort";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "rollback") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::rollback takes 0 arguments");
+                }
+                if (auto* var = dynamic_cast<VariableExpr*>(mc->receiver.get())) {
+                    auto it = table_vars_.find(var->name);
+                    if (it != table_vars_.end()) {
+                        it->second.staging_loaded = false;
+                        it->second.staging_verified = false;
+                        it->second.staging_val = 0;
+                    }
+                }
+                mc->resolved_callee = "FlightTable__rollback";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "active") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::active takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__active";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "staging") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::staging takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__staging";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_staging_valid") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::is_staging_valid takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__is_staging_valid";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_staging_loaded") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::is_staging_loaded takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__is_staging_loaded";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "commit_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::commit_count takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__commit_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "active_checksum") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::active_checksum takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__active_checksum";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "staging_checksum") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "FlightTable::staging_checksum takes 0 arguments");
+                }
+                mc->resolved_callee = "FlightTable__staging_checksum";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;

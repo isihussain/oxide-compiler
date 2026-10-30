@@ -47,6 +47,7 @@ def run():
         ("examples/29_mass_depletion_invariants.rs", 42, ["--profile=aerospace"]),
         ("examples/30_bitpacked_telemetry_crc.rs", 42, ["--profile=aerospace"]),
         ("examples/31_cyclomatic_complexity.rs", 42, ["--profile=aerospace"]),
+        ("examples/32_double_buffered_table.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -151,6 +152,10 @@ def run():
         ("tests/ui/fail_telemetry_channel_out_of_bounds.rs", "telemetry packet channel index (4) out of bounds [0..3]", []),
         ("tests/ui/fail_complexity_threshold_exceeded.rs", "cyclomatic complexity of function 'complex_flight_evaluator' (5) exceeds threshold (3)", ["--profile=aerospace"]),
         ("tests/ui/fail_complexity_attribute_invalid.rs", "cyclomatic complexity configuration error in function 'zero_complexity_task': max_complexity must be a positive integer", ["--profile=aerospace"]),
+        ("tests/ui/fail_table_commit_empty_staging.rs", "invalid flight table commit: staging buffer is empty", []),
+        ("tests/ui/fail_table_commit_unverified.rs", "unverified flight table commit: staging buffer has not been verified prior to commit", []),
+        ("tests/ui/fail_table_bounds_inverted.rs", "invalid flight table bounds: min_val (200) exceeds max_val (100)", []),
+        ("tests/ui/fail_table_immutable_load.rs", "cannot borrow immutable local variable 'table' as mutable in method call", []),
     ]
 
     for item in negative_tests:
