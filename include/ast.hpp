@@ -519,12 +519,19 @@ struct StructDef : public ASTNode {
     std::string name;
     std::vector<std::string> type_params;
     std::vector<StructField> fields;
+    std::vector<std::string> attributes;
 
     StructDef(std::string name, std::vector<StructField> fields, SourceLocation loc,
               std::vector<std::string> t_params = {})
         : name(std::move(name)), type_params(std::move(t_params)), fields(std::move(fields)) { location = loc; }
 
     bool is_generic() const { return !type_params.empty(); }
+    bool is_packed() const {
+        for (const auto& a : attributes) {
+            if (a == "packed" || a == "repr(packed)") return true;
+        }
+        return false;
+    }
     void dump(int indent = 0) const;
 };
 

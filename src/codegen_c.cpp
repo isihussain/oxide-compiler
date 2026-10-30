@@ -473,6 +473,85 @@ void CCodeGenerator::emit_includes() {
     line("    return self->dry_mass + self->propellant_mass;");
     line("}");
     line();
+    line("/* Bit-Packed Telemetry Frame (CCSDS Space Packet Architecture compliant) */");
+    line("/* Zero byte-padding gaps: 6 x 32-bit words = 24 bytes contiguous binary frame */");
+    line("typedef struct __attribute__((packed)) {");
+    line("    int32_t packet_id;");
+    line("    int32_t timestamp;");
+    line("    int32_t ch0;");
+    line("    int32_t ch1;");
+    line("    int32_t ch2;");
+    line("    int32_t ch3;");
+    line("} TelemetryPacket;");
+    line();
+    line("static inline uint32_t __oxide_crc32(const uint8_t* data, size_t length) {");
+    line("    uint32_t crc = 0xFFFFFFFF;");
+    line("    for (size_t i = 0; i < length; ++i) {");
+    line("        crc ^= data[i];");
+    line("        for (int b = 0; b < 8; ++b) {");
+    line("            if (crc & 1) {");
+    line("                crc = (crc >> 1) ^ 0xEDB88320U;");
+    line("            } else {");
+    line("                crc = crc >> 1;");
+    line("            }");
+    line("        }");
+    line("    }");
+    line("    return ~crc;");
+    line("}");
+    line();
+    line("static inline TelemetryPacket TelemetryPacket__new(int32_t packet_id, int32_t timestamp, int32_t ch0, int32_t ch1, int32_t ch2, int32_t ch3) {");
+    line("    if (packet_id <= 0) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: TelemetryPacket packet_id must be strictly positive\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    if (timestamp < 0) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: TelemetryPacket timestamp cannot be negative\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return (TelemetryPacket){");
+    line("        .packet_id = packet_id,");
+    line("        .timestamp = timestamp,");
+    line("        .ch0 = ch0,");
+    line("        .ch1 = ch1,");
+    line("        .ch2 = ch2,");
+    line("        .ch3 = ch3");
+    line("    };");
+    line("}");
+    line();
+    line("static inline int32_t TelemetryPacket__packet_id(const TelemetryPacket* self) {");
+    line("    return self->packet_id;");
+    line("}");
+    line();
+    line("static inline int32_t TelemetryPacket__timestamp(const TelemetryPacket* self) {");
+    line("    return self->timestamp;");
+    line("}");
+    line();
+    line("static inline int32_t TelemetryPacket__channel(const TelemetryPacket* self, int32_t idx) {");
+    line("    if (idx == 0) return self->ch0;");
+    line("    if (idx == 1) return self->ch1;");
+    line("    if (idx == 2) return self->ch2;");
+    line("    if (idx == 3) return self->ch3;");
+    line("    fprintf(stderr, \"AEROSPACE TRAP: TelemetryPacket channel index out of bounds (must be 0..3)\\n\");");
+    line("    abort();");
+    line("}");
+    line();
+    line("static inline int32_t TelemetryPacket__compute_crc(const TelemetryPacket* self) {");
+    line("    return (int32_t)__oxide_crc32((const uint8_t*)self, sizeof(TelemetryPacket));");
+    line("}");
+    line();
+    line("static inline bool TelemetryPacket__verify_crc(const TelemetryPacket* self, int32_t expected_crc) {");
+    line("    return TelemetryPacket__compute_crc(self) == expected_crc;");
+    line("}");
+    line();
+    line("static inline int32_t TelemetryPacket__verify_or_abort(const TelemetryPacket* self, int32_t expected_crc) {");
+    line("    int32_t actual = TelemetryPacket__compute_crc(self);");
+    line("    if (actual != expected_crc) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: telemetry packet CRC checksum mismatch (corrupted RF frame: expected %08X, got %08X)\\n\", (uint32_t)expected_crc, (uint32_t)actual);");
+    line("        abort();");
+    line("    }");
+    line("    return 0;");
+    line("}");
+    line();
 }
 
 // Emits safety-critical runtime traps for the aerospace profile.
@@ -676,7 +755,11 @@ void CCodeGenerator::emit_struct_declarations() {
             line(map_type(f.type) + " " + f.name + ";");
         }
         indent_level_--;
-        line("} " + s->name + ";");
+        if (s->is_packed()) {
+            line("} __attribute__((packed)) " + s->name + ";");
+        } else {
+            line("} " + s->name + ";");
+        }
         line();
     }
 }

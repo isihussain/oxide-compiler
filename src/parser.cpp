@@ -97,7 +97,9 @@ std::unique_ptr<Program> Parser::parse_program() {
             fn->attributes = pending_attrs;
             program->functions.push_back(std::move(fn));
         } else if (check(TokenType::KwStruct)) {
-            program->structs.push_back(parse_struct_definition());
+            auto s = parse_struct_definition();
+            s->attributes = pending_attrs;
+            program->structs.push_back(std::move(s));
         } else if (check(TokenType::KwEnum)) {
             program->enums.push_back(parse_enum_definition());
         } else if (check(TokenType::KwStateMachine)) {

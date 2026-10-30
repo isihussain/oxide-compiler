@@ -45,6 +45,7 @@ def run():
         ("examples/27_afts_corridor_geofence.rs", 42, ["--profile=aerospace"]),
         ("examples/28_spsc_ring_buffer.rs", 42, ["--profile=aerospace"]),
         ("examples/29_mass_depletion_invariants.rs", 42, ["--profile=aerospace"]),
+        ("examples/30_bitpacked_telemetry_crc.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -144,6 +145,9 @@ def run():
         ("tests/ui/fail_stage_propellant_negative.rs", "invalid stage mass configuration: initial_propellant (-500) cannot be negative", []),
         ("tests/ui/fail_stage_burn_negative.rs", "cannot burn negative propellant mass (-1000)", []),
         ("tests/ui/fail_stage_dry_mass_breach.rs", "physical dry mass invariant violated: burn amount (60000) exceeds available propellant (50000)", []),
+        ("tests/ui/fail_telemetry_packet_id_zero.rs", "invalid telemetry packet: packet_id (0) must be positive", []),
+        ("tests/ui/fail_telemetry_timestamp_negative.rs", "invalid telemetry packet: timestamp (-50) cannot be negative", []),
+        ("tests/ui/fail_telemetry_channel_out_of_bounds.rs", "telemetry packet channel index (4) out of bounds [0..3]", []),
     ]
 
     for item in negative_tests:

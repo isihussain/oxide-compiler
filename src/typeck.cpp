@@ -116,6 +116,14 @@ void TypeChecker::register_structs() {
         {"dry_mass", Type{BaseTypeKind::I32, false, false}},
         {"propellant_mass", Type{BaseTypeKind::I32, false, false}}
     }, {"dry_mass", "propellant_mass"}, SourceLocation{0, 0}};
+    struct_table_["TelemetryPacket"] = StructSignature{"TelemetryPacket", {}, {
+        {"packet_id", Type{BaseTypeKind::I32, false, false}},
+        {"timestamp", Type{BaseTypeKind::I32, false, false}},
+        {"ch0", Type{BaseTypeKind::I32, false, false}},
+        {"ch1", Type{BaseTypeKind::I32, false, false}},
+        {"ch2", Type{BaseTypeKind::I32, false, false}},
+        {"ch3", Type{BaseTypeKind::I32, false, false}}
+    }, {"packet_id", "timestamp", "ch0", "ch1", "ch2", "ch3"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1329,6 +1337,32 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "TelemetryPacket::new") {
+            if (call->arguments.size() != 6) {
+                emit_error(call->location, "TelemetryPacket::new takes exactly 6 arguments (packet_id, timestamp, ch0, ch1, ch2, ch3)");
+            } else {
+                for (size_t i = 0; i < 6; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "TelemetryPacket parameter must be 'i32'");
+                    }
+                }
+                int64_t id = 0, ts = 0;
+                bool has_id = extract_const_int(call->arguments[0].get(), id);
+                bool has_ts = extract_const_int(call->arguments[1].get(), ts);
+                if (has_id && id <= 0) {
+                    emit_error(call->location, "invalid telemetry packet: packet_id (" +
+                               std::to_string(id) + ") must be positive");
+                }
+                if (has_ts && ts < 0) {
+                    emit_error(call->location, "invalid telemetry packet: timestamp (" +
+                               std::to_string(ts) + ") cannot be negative");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "TelemetryPacket", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -1951,6 +1985,85 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
                 mc->resolved_callee = "StageMass__burn";
                 mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "TelemetryPacket") {
+            if (mc->method_name == "packet_id") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TelemetryPacket::packet_id takes 0 arguments");
+                }
+                mc->resolved_callee = "TelemetryPacket__packet_id";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "timestamp") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TelemetryPacket::timestamp takes 0 arguments");
+                }
+                mc->resolved_callee = "TelemetryPacket__timestamp";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "channel") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "TelemetryPacket::channel takes exactly 1 argument (index)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "TelemetryPacket::channel argument must be 'i32'");
+                    }
+                    int64_t idx = 0;
+                    if (extract_const_int(mc->arguments[0].get(), idx)) {
+                        if (idx < 0 || idx > 3) {
+                            emit_error(mc->location, "telemetry packet channel index (" +
+                                       std::to_string(idx) + ") out of bounds [0..3]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "TelemetryPacket__channel";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "compute_crc") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TelemetryPacket::compute_crc takes 0 arguments");
+                }
+                mc->resolved_callee = "TelemetryPacket__compute_crc";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "verify_crc") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "TelemetryPacket::verify_crc takes exactly 1 argument (expected_crc)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "TelemetryPacket::verify_crc argument must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "TelemetryPacket__verify_crc";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "verify_or_abort") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "TelemetryPacket::verify_or_abort takes exactly 1 argument (expected_crc)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "TelemetryPacket::verify_or_abort argument must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "TelemetryPacket__verify_or_abort";
+                mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;
             }
