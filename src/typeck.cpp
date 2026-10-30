@@ -139,6 +139,7 @@ void TypeChecker::register_structs() {
         {"y", Type{BaseTypeKind::I32, false, false}},
         {"z", Type{BaseTypeKind::I32, false, false}}
     }, {"w", "x", "y", "z"}, SourceLocation{0, 0}};
+    struct_table_["SoftwareBus"] = StructSignature{"SoftwareBus", {}, {}, {}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1454,6 +1455,15 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "SoftwareBus::new") {
+            if (!call->arguments.empty()) {
+                emit_error(call->location, "SoftwareBus::new takes 0 arguments");
+            }
+            call->callee = "SoftwareBus__new";
+            call->evaluated_type = Type{BaseTypeKind::Named, "SoftwareBus", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -2468,6 +2478,170 @@ Type TypeChecker::check_expression(Expression& expr) {
                     }
                 }
                 mc->resolved_callee = "Quaternion__inject_drift";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "SoftwareBus") {
+            if (mc->method_name == "subscribe") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::subscribe takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::subscribe msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__subscribe";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_subscribed") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::is_subscribed takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::is_subscribed msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__is_subscribed";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "publish") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "SoftwareBus::publish takes exactly 2 arguments (msg_id, payload)");
+                } else {
+                    Type t1 = check_expression(*mc->arguments[0]);
+                    Type t2 = check_expression(*mc->arguments[1]);
+                    if (t1.kind != BaseTypeKind::I32 || t2.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "SoftwareBus::publish arguments must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__publish";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "receive") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::receive takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::receive msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__receive";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "has_pending") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::has_pending takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::has_pending msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__has_pending";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "pending_count") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::pending_count takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::pending_count msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__pending_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "dropped_count") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::dropped_count takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::dropped_count msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__dropped_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "clear") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SoftwareBus::clear takes exactly 1 argument (msg_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SoftwareBus::clear msg_id must be 'i32'");
+                    }
+                    int64_t id = 0;
+                    if (extract_const_int(mc->arguments[0].get(), id)) {
+                        if (id < 0 || id >= 8) {
+                            emit_error(mc->location, "invalid software bus message ID (" + std::to_string(id) + "): must be within static channel range [0..7]");
+                        }
+                    }
+                }
+                mc->resolved_callee = "SoftwareBus__clear";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
                 return mc->evaluated_type;

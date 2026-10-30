@@ -49,6 +49,7 @@ def run():
         ("examples/31_cyclomatic_complexity.rs", 42, ["--profile=aerospace"]),
         ("examples/32_double_buffered_table.rs", 42, ["--profile=aerospace"]),
         ("examples/33_adcs_quaternion_norm.rs", 42, ["--profile=aerospace"]),
+        ("examples/34_software_bus_pubsub.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -160,6 +161,9 @@ def run():
         ("tests/ui/fail_quaternion_non_unit_literal.rs", "invalid unit quaternion literal: norm squared (1250000) deviates from unit scale (1000000)", []),
         ("tests/ui/fail_quaternion_arity.rs", "Quaternion::new takes exactly 4 arguments (w, x, y, z)", []),
         ("tests/ui/fail_quaternion_immutable_renormalize.rs", "cannot borrow immutable local variable 'q' as mutable in method call", []),
+        ("tests/ui/fail_bus_channel_out_of_bounds.rs", "invalid software bus message ID (9): must be within static channel range [0..7]", []),
+        ("tests/ui/fail_bus_channel_negative.rs", "invalid software bus message ID (-1): must be within static channel range [0..7]", []),
+        ("tests/ui/fail_bus_immutable_publish.rs", "cannot borrow immutable local variable 'bus' as mutable in method call", []),
     ]
 
     for item in negative_tests:
