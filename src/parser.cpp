@@ -53,6 +53,24 @@ const Token& Parser::consume(TokenType type, const std::string& error_message) {
     throw std::runtime_error(full_msg);
 }
 
+std::string Parser::parse_attribute() {
+    consume(TokenType::Hash, "Expected '#'");
+    consume(TokenType::LBracket, "Expected '[' after '#'");
+    std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
+    if (match(TokenType::LParen)) {
+        attr += "(";
+        while (!check(TokenType::RParen) && !is_at_end()) {
+            attr += advance().text;
+        }
+        consume(TokenType::RParen, "Expected ')' after attribute arguments");
+        attr += ")";
+    } else if (match(TokenType::Eq)) {
+        attr += "=" + advance().text;
+    }
+    consume(TokenType::RBracket, "Expected ']' after attribute");
+    return attr;
+}
+
 std::unique_ptr<Program> Parser::parse_program() {
     auto program = std::make_unique<Program>();
     program->location = peek().location;
@@ -71,11 +89,7 @@ std::unique_ptr<Program> Parser::parse_program() {
     while (!is_at_end()) {
         std::vector<std::string> pending_attrs;
         while (check(TokenType::Hash)) {
-            advance(); // consume '#'
-            consume(TokenType::LBracket, "Expected '[' after '#'");
-            std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
-            consume(TokenType::RBracket, "Expected ']' after attribute name");
-            pending_attrs.push_back(attr);
+            pending_attrs.push_back(parse_attribute());
         }
 
         if (check(TokenType::KwFn)) {
@@ -287,11 +301,7 @@ std::unique_ptr<ImplBlock> Parser::parse_impl_block() {
     while (!check(TokenType::RBrace) && !is_at_end()) {
         std::vector<std::string> pending_attrs;
         while (check(TokenType::Hash)) {
-            advance(); // consume '#'
-            consume(TokenType::LBracket, "Expected '[' after '#'");
-            std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
-            consume(TokenType::RBracket, "Expected ']' after attribute name");
-            pending_attrs.push_back(attr);
+            pending_attrs.push_back(parse_attribute());
         }
         auto fn = parse_function(target_type);
         fn->attributes = pending_attrs;
@@ -549,11 +559,7 @@ std::unique_ptr<BlockExpr> Parser::parse_block() {
     while (!check(TokenType::RBrace) && !is_at_end()) {
         std::vector<std::string> pending_attrs;
         while (check(TokenType::Hash)) {
-            advance(); // consume '#'
-            consume(TokenType::LBracket, "Expected '[' after '#'");
-            std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
-            consume(TokenType::RBracket, "Expected ']' after attribute name");
-            pending_attrs.push_back(attr);
+            pending_attrs.push_back(parse_attribute());
         }
 
         if (check(TokenType::KwLet)) {

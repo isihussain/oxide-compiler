@@ -51,6 +51,7 @@ private:
     bool match(TokenType type);
     const Token& consume(TokenType type, const std::string& error_message);
 
+    std::string parse_attribute();
     std::unique_ptr<Function> parse_function(const std::string& target_type = "");
     std::unique_ptr<StructDef> parse_struct_definition();
     std::unique_ptr<EnumDef> parse_enum_definition();

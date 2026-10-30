@@ -55,6 +55,7 @@ Rust Source (.rs)
 * **Mission State Machine Verifier (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Verifies state transitions and reachability in `state_machine` blocks. Enforces transition exhaustiveness, detects sequencing deadlocks on non-terminal states without outgoing transitions, detects closed trap cycles lacking escape paths to terminal/abort states, and lowers state definitions into C99 enums with static/runtime transition checkers.
 * **MMIO & Hardware Barrier Verifier (`src/typeck.cpp`, `src/aerospace.cpp`, `src/codegen_c.cpp`)**: Provides type-safe hardware register access with `VolatileRegister<T, Mode>`. Enforces access permissions (`ReadOnly`, `WriteOnly`, `ReadWrite`), prevents compiler write coalescing via volatile semantics, and verifies memory sequence barriers between consecutive actuator commands under `--profile=aerospace`.
 * **Fixed-Point Arithmetic Engine (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Provides deterministic Q16.16 arithmetic for backup flight computers and ESCs without floating-point hardware dependencies. Supports 64-bit intermediate scaling, compile-time division-by-zero checks, and saturation arithmetic under `--profile=aerospace`.
+* **Real-Time WCET Verifier (`include/aerospace.hpp`, `src/aerospace.cpp`)**: Computes worst-case execution time (WCET) on control-flow paths at 100 MHz clock resolution. Rejects hard real-time flight control loops (`#[realtime(budget_us = N)]`) when worst-case latency exceeds the microsecond deadline under `--profile=aerospace`.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations and dead code elimination following early returns.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
@@ -244,6 +245,13 @@ Results: 78/78 tests passed.
   - [x] Verifiable mission flight state machines with deadlock and abort verification
   - [x] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers
   - [x] Deterministic fixed-point arithmetic (Q-format) for backup flight controllers
+- [ ] **Milestone 7: Autonomous Launch Vehicle & Hard Real-Time Avionics**
+  - [x] Worst-Case Execution Time (WCET) static analysis and real-time loop budgeting
+  - [ ] Actuator slew-rate limiter and physical gimbal angle boundary enforcement
+  - [ ] Autonomous Flight Termination System (AFTS) corridor geofencing verification
+  - [ ] Lock-free zero-allocation Single-Producer Single-Consumer (SPSC) telemetry ring buffer
+  - [ ] Physical dry mass lower bound invariants and propellant depletion verification
+  - [ ] Bit-packed zero-copy telemetry packet serialization and CRC verification
 
 ---
 

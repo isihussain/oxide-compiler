@@ -40,6 +40,7 @@ def run():
         ("examples/22_mission_state_machine.rs", 42, []),
         ("examples/23_mmio_volatile_barriers.rs", 42, ["--profile=aerospace"]),
         ("examples/24_fixed_point_q16.rs", 42, ["--profile=aerospace"]),
+        ("examples/25_realtime_wcet_budget.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -123,6 +124,8 @@ def run():
         ("tests/ui/fail_mmio_missing_barrier.rs", "missing memory barrier between consecutive volatile register writes", ["--profile=aerospace"]),
         ("tests/ui/fail_fixed_point_div_by_zero.rs", "division by zero: fixed-point divisor is 0", []),
         ("tests/ui/fail_fixed_point_type_mismatch.rs", "mismatched types in fixed-point arithmetic", []),
+        ("tests/ui/fail_realtime_budget_exceeded.rs", "real-time deadline exceeded in function 'guidance_deadline_exceeded'", ["--profile=aerospace"]),
+        ("tests/ui/fail_realtime_budget_invalid.rs", "real-time deadline error in function 'zero_budget_task'", ["--profile=aerospace"]),
     ]
 
     for item in negative_tests:

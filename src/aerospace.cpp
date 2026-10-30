@@ -430,12 +430,174 @@ void AerospaceVerifier::check_volatile_barriers() {
     }
 }
 
+int64_t AerospaceVerifier::compute_expr_cycles(const Expression& expr) {
+    if (dynamic_cast<const IntegerLiteralExpr*>(&expr)) return 1;
+    if (dynamic_cast<const FloatLiteralExpr*>(&expr)) return 1;
+    if (dynamic_cast<const BoolLiteralExpr*>(&expr)) return 1;
+    if (dynamic_cast<const StringLiteralExpr*>(&expr)) return 1;
+    if (dynamic_cast<const VariableExpr*>(&expr)) return 1;
+
+    if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
+        int64_t l = compute_expr_cycles(*bin->left);
+        int64_t r = compute_expr_cycles(*bin->right);
+        int64_t op_cost = 1;
+        if (bin->op == BinaryOp::Mul) {
+            op_cost = (bin->evaluated_type.kind == BaseTypeKind::F32 || bin->evaluated_type.kind == BaseTypeKind::F64) ? 5 : 3;
+            if (bin->evaluated_type.name == "Q16_16") op_cost = 6;
+        } else if (bin->op == BinaryOp::Div) {
+            op_cost = (bin->evaluated_type.kind == BaseTypeKind::F32 || bin->evaluated_type.kind == BaseTypeKind::F64) ? 15 : 20;
+            if (bin->evaluated_type.name == "Q16_16") op_cost = 25;
+        } else if (bin->op == BinaryOp::Add || bin->op == BinaryOp::Sub) {
+            if (bin->evaluated_type.kind == BaseTypeKind::F32 || bin->evaluated_type.kind == BaseTypeKind::F64) op_cost = 4;
+            else if (bin->evaluated_type.name == "Q16_16") op_cost = 2;
+        }
+        return l + r + op_cost;
+    }
+
+    if (auto* un = dynamic_cast<const UnaryExpr*>(&expr)) {
+        return compute_expr_cycles(*un->operand) + 1;
+    }
+
+    if (auto* assign = dynamic_cast<const AssignExpr*>(&expr)) {
+        return compute_expr_cycles(*assign->target) + compute_expr_cycles(*assign->value) + 1;
+    }
+
+    if (auto* if_expr = dynamic_cast<const IfExpr*>(&expr)) {
+        int64_t cond = compute_expr_cycles(*if_expr->condition);
+        int64_t then_c = compute_block_cycles(*if_expr->then_branch);
+        int64_t else_c = if_expr->else_branch ? compute_block_cycles(*if_expr->else_branch) : 0;
+        return cond + 2 + std::max(then_c, else_c);
+    }
+
+    if (auto* while_expr = dynamic_cast<const WhileExpr*>(&expr)) {
+        int64_t cond = compute_expr_cycles(*while_expr->condition);
+        int64_t body = while_expr->body ? compute_block_cycles(*while_expr->body) : 0;
+        return cond + 10 * (cond + body + 2);
+    }
+
+    if (auto* for_expr = dynamic_cast<const ForExpr*>(&expr)) {
+        int64_t trip_count = 10;
+        if (auto* range = dynamic_cast<const RangeExpr*>(for_expr->iterable.get())) {
+            auto* s_lit = dynamic_cast<const IntegerLiteralExpr*>(range->start.get());
+            auto* e_lit = dynamic_cast<const IntegerLiteralExpr*>(range->end.get());
+            if (s_lit && e_lit && e_lit->value >= s_lit->value) {
+                trip_count = e_lit->value - s_lit->value;
+            }
+        }
+        int64_t body = for_expr->body ? compute_block_cycles(*for_expr->body) : 0;
+        return 2 + trip_count * (body + 2);
+    }
+
+    if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
+        int64_t arg_cost = 0;
+        for (const auto& a : call->arguments) {
+            arg_cost += compute_expr_cycles(*a);
+        }
+        int64_t fn_cost = 5;
+        if (call->callee == "println!") fn_cost = 50;
+        else if (call->callee == "sqrt") fn_cost = 15;
+        else if (call->callee == "clamp") fn_cost = 4;
+        else if (call->callee == "tmr_vote") fn_cost = 6;
+        else if (call->callee == "memory_barrier") fn_cost = 2;
+        else {
+            for (const auto& fn : program_.functions) {
+                if (fn->name == call->callee && fn->body) {
+                    fn_cost += compute_block_cycles(*fn->body);
+                    break;
+                }
+            }
+        }
+        return arg_cost + fn_cost;
+    }
+
+    if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        int64_t cost = compute_expr_cycles(*mc->receiver) + 3;
+        for (const auto& a : mc->arguments) {
+            cost += compute_expr_cycles(*a);
+        }
+        return cost;
+    }
+
+    if (auto* ret = dynamic_cast<const ReturnExpr*>(&expr)) {
+        return ret->value ? compute_expr_cycles(*ret->value) + 1 : 1;
+    }
+
+    if (auto* block = dynamic_cast<const BlockExpr*>(&expr)) {
+        return compute_block_cycles(*block);
+    }
+
+    return 1;
+}
+
+int64_t AerospaceVerifier::compute_block_cycles(const BlockExpr& block) {
+    int64_t total = 0;
+    for (const auto& s : block.statements) {
+        if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+            total += 1;
+            if (let->initializer) {
+                total += compute_expr_cycles(*let->initializer);
+            }
+        } else if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+            if (es->expr) {
+                total += compute_expr_cycles(*es->expr);
+            }
+        }
+    }
+    if (block.trailing_expr) {
+        total += compute_expr_cycles(*block.trailing_expr);
+    }
+    return total;
+}
+
+// Worst-Case Execution Time (WCET) Static Verifier:
+// Calculates the upper bound execution latency across control-flow paths at 100 MHz clock rate.
+// Rejects real-time flight loops if their worst-case path exceeds the declared deadline budget.
+void AerospaceVerifier::check_realtime_budgets() {
+    for (const auto& fn : program_.functions) {
+        auto budget_opt = fn->get_realtime_budget_us();
+        if (budget_opt.has_value() && fn->body) {
+            int64_t budget_us = *budget_opt;
+            if (budget_us <= 0) {
+                emit_error(fn->location, "real-time deadline error in function '" + fn->name + "': budget must be a positive integer");
+                continue;
+            }
+            int64_t cycles = compute_block_cycles(*fn->body);
+            int64_t wcet_us = (cycles + 99) / 100;
+            if (wcet_us == 0) wcet_us = 1;
+            if (wcet_us > budget_us) {
+                emit_error(fn->location, "real-time deadline exceeded in function '" + fn->name + "': worst-case execution time is " +
+                           std::to_string(wcet_us) + " us (exceeds budget of " + std::to_string(budget_us) + " us)");
+            }
+        }
+    }
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            auto budget_opt = fn->get_realtime_budget_us();
+            if (budget_opt.has_value() && fn->body) {
+                int64_t budget_us = *budget_opt;
+                if (budget_us <= 0) {
+                    emit_error(fn->location, "real-time deadline error in function '" + fn->name + "': budget must be a positive integer");
+                    continue;
+                }
+                int64_t cycles = compute_block_cycles(*fn->body);
+                int64_t wcet_us = (cycles + 99) / 100;
+                if (wcet_us == 0) wcet_us = 1;
+                if (wcet_us > budget_us) {
+                    emit_error(fn->location, "real-time deadline exceeded in function '" + fn->name + "': worst-case execution time is " +
+                               std::to_string(wcet_us) + " us (exceeds budget of " + std::to_string(budget_us) + " us)");
+                }
+            }
+        }
+    }
+}
+
 bool AerospaceVerifier::verify() {
     build_call_graph();
     check_recursion();
     check_loop_bounds();
     check_memory_allocation();
     check_volatile_barriers();
+    check_realtime_budgets();
     return errors_.empty();
 }
 
