@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
     c_out.close();
 
     if (!output_bin.empty()) {
-        std::string compile_cmd = "clang -std=c99 -O2 \"" + c_file_path + "\" -o \"" + output_bin + "\"";
+        std::string compile_cmd = "clang -std=c99 -O2 \"" + c_file_path + "\" -o \"" + output_bin + "\" -lm";
         int res = std::system(compile_cmd.c_str());
         if (res != 0) {
             std::cerr << "oxide: backend compilation error (exit code " << res << ")\n";
