@@ -374,6 +374,10 @@ Type Parser::parse_type() {
 
     if (match(TokenType::TypeI32)) {
         type.kind = BaseTypeKind::I32;
+    } else if (match(TokenType::TypeF32)) {
+        type.kind = BaseTypeKind::F32;
+    } else if (match(TokenType::TypeF64)) {
+        type.kind = BaseTypeKind::F64;
     } else if (match(TokenType::TypeBool)) {
         type.kind = BaseTypeKind::Bool;
     } else if (match(TokenType::TypeStr)) {
@@ -692,6 +696,10 @@ std::unique_ptr<Expression> Parser::parse_primary() {
 
     if (match(TokenType::LiteralInt)) {
         return std::make_unique<IntegerLiteralExpr>(previous().int_value, loc);
+    }
+
+    if (match(TokenType::LiteralFloat)) {
+        return std::make_unique<FloatLiteralExpr>(previous().float_value, loc);
     }
 
     if (match(TokenType::LiteralBool)) {

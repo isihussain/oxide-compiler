@@ -47,6 +47,12 @@ std::unique_ptr<Expression> Monomorphizer::clone_expr(const Expression& expr, co
         return res;
     }
 
+    if (auto* fl_lit = dynamic_cast<const FloatLiteralExpr*>(&expr)) {
+        auto res = std::make_unique<FloatLiteralExpr>(fl_lit->value, fl_lit->location);
+        res->evaluated_type = substitute_type(fl_lit->evaluated_type, subst);
+        return res;
+    }
+
     if (auto* var = dynamic_cast<const VariableExpr*>(&expr)) {
         auto res = std::make_unique<VariableExpr>(var->name, var->location);
         res->evaluated_type = substitute_type(var->evaluated_type, subst);

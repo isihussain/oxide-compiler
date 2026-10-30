@@ -31,7 +31,7 @@ private:
     void emit_enum_constructors();
     void emit_forward_declarations();
     void emit_function(const Function& func);
-    void emit_block(const BlockExpr& block, bool is_function_body);
+    void emit_block(const BlockExpr& block, bool is_function_body, bool is_main = false);
     void emit_statement(const Statement& stmt);
     void emit_expression(const Expression& expr);
     void emit_match_arm_body(const Expression& body, const std::string& res_var, bool has_res);

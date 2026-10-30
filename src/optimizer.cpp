@@ -138,6 +138,67 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
             }
         }
 
+        auto* l_fl = dynamic_cast<FloatLiteralExpr*>(bin->left.get());
+        auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get());
+
+        if (l_fl && r_fl) {
+            switch (bin->op) {
+                case BinaryOp::Add: {
+                    auto res = std::make_unique<FloatLiteralExpr>(l_fl->value + r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::Sub: {
+                    auto res = std::make_unique<FloatLiteralExpr>(l_fl->value - r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::Mul: {
+                    auto res = std::make_unique<FloatLiteralExpr>(l_fl->value * r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::Div: {
+                    if (r_fl->value != 0.0) {
+                        auto res = std::make_unique<FloatLiteralExpr>(l_fl->value / r_fl->value, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
+                    break;
+                }
+                case BinaryOp::Equal: {
+                    auto res = std::make_unique<BoolLiteralExpr>(l_fl->value == r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::NotEqual: {
+                    auto res = std::make_unique<BoolLiteralExpr>(l_fl->value != r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::Less: {
+                    auto res = std::make_unique<BoolLiteralExpr>(l_fl->value < r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::LessEqual: {
+                    auto res = std::make_unique<BoolLiteralExpr>(l_fl->value <= r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::Greater: {
+                    auto res = std::make_unique<BoolLiteralExpr>(l_fl->value > r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+                case BinaryOp::GreaterEqual: {
+                    auto res = std::make_unique<BoolLiteralExpr>(l_fl->value >= r_fl->value, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+            }
+        }
+
         auto* l_bool = dynamic_cast<BoolLiteralExpr*>(bin->left.get());
         auto* r_bool = dynamic_cast<BoolLiteralExpr*>(bin->right.get());
         if (l_bool && r_bool) {
@@ -160,6 +221,11 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
         if (un->op == UnaryOp::Negate) {
             if (auto* int_lit = dynamic_cast<IntegerLiteralExpr*>(un->operand.get())) {
                 auto res = std::make_unique<IntegerLiteralExpr>(-int_lit->value, un->location);
+                res->evaluated_type = un->evaluated_type;
+                return res;
+            }
+            if (auto* fl_lit = dynamic_cast<FloatLiteralExpr*>(un->operand.get())) {
+                auto res = std::make_unique<FloatLiteralExpr>(-fl_lit->value, un->location);
                 res->evaluated_type = un->evaluated_type;
                 return res;
             }

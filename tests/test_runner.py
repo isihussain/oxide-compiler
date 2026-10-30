@@ -35,6 +35,7 @@ def run():
         ("examples/17_standard_core_option_result.rs", 42, []),
         ("examples/18_constant_folding.rs", 42, []),
         ("examples/19_dimensional_analysis.rs", 42, []),
+        ("examples/20_floating_point_safety.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -102,6 +103,10 @@ def run():
         ("tests/ui/fail_dimension_add_mismatch.rs", "cannot add differing physical dimensions 'Meter' and 'Second'", []),
         ("tests/ui/fail_dimension_compare_mismatch.rs", "cannot compare differing physical dimensions 'Meter' and 'Newton'", []),
         ("tests/ui/fail_dimension_assign_mismatch.rs", "mismatched types in 'let': expected 'Second', found 'Meter'", []),
+        ("tests/ui/fail_float_div_by_zero.rs", "division by zero: floating-point divisor is 0.0", []),
+        ("tests/ui/fail_float_sqrt_negative.rs", "domain error: square root of negative float literal", []),
+        ("tests/ui/fail_float_clamp_invalid_bounds.rs", "clamp bounds error: min value is greater than max value", []),
+        ("tests/ui/fail_float_type_mismatch.rs", "mismatched types in arithmetic: cannot operate on 'f32' and 'i32'", []),
     ]
 
     for item in negative_tests:

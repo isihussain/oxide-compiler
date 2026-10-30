@@ -29,9 +29,12 @@ const char* token_type_name(TokenType type) {
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
         case TokenType::TypeI32: return "i32";
+        case TokenType::TypeF32: return "f32";
+        case TokenType::TypeF64: return "f64";
         case TokenType::TypeBool: return "bool";
         case TokenType::TypeStr: return "str";
         case TokenType::LiteralInt: return "Integer";
+        case TokenType::LiteralFloat: return "Float";
         case TokenType::LiteralBool: return "Boolean";
         case TokenType::LiteralString: return "String";
         case TokenType::Identifier: return "Identifier";
@@ -262,6 +265,8 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "true") return Token{TokenType::LiteralBool, text, 0, true, loc};
     if (text == "false") return Token{TokenType::LiteralBool, text, 0, false, loc};
     if (text == "i32") return Token{TokenType::TypeI32, text, 0, false, loc};
+    if (text == "f32") return Token{TokenType::TypeF32, text, 0, false, loc};
+    if (text == "f64") return Token{TokenType::TypeF64, text, 0, false, loc};
     if (text == "bool") return Token{TokenType::TypeBool, text, 0, false, loc};
     if (text == "str") return Token{TokenType::TypeStr, text, 0, false, loc};
 
@@ -274,6 +279,21 @@ Token Lexer::scan_number() {
     while (!is_at_end() && std::isdigit(peek())) {
         advance();
     }
+
+    // Check if followed by '.' and digit (fractional floating-point literal)
+    // Avoids consuming '..' range operator
+    if (peek() == '.' && std::isdigit(peek_next())) {
+        advance(); // consume '.'
+        while (!is_at_end() && std::isdigit(peek())) {
+            advance();
+        }
+        std::string text = source_.substr(start, cursor_ - start);
+        double fval = std::stod(text);
+        Token tok{TokenType::LiteralFloat, text, 0, false, loc};
+        tok.float_value = fval;
+        return tok;
+    }
+
     std::string text = source_.substr(start, cursor_ - start);
     int64_t val = std::stoll(text);
     return Token{TokenType::LiteralInt, text, val, false, loc};

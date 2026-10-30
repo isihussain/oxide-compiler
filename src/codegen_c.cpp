@@ -1,4 +1,5 @@
 #include "codegen_c.hpp"
+#include <iomanip>
 
 namespace oxide {
 
@@ -37,6 +38,8 @@ std::string CCodeGenerator::map_type(const Type& type) {
         case BaseTypeKind::Named: base = type.name; break;
         case BaseTypeKind::GenericParam: base = type.name; break;
         case BaseTypeKind::PhysicalUnit: base = "int32_t"; break;
+        case BaseTypeKind::F32: base = "float"; break;
+        case BaseTypeKind::F64: base = "double"; break;
     }
     if (type.is_ref) {
         if (type.is_mut_ref) {
@@ -80,14 +83,44 @@ void CCodeGenerator::emit_includes() {
     line("#include <stdio.h>");
     line("#include <stdlib.h>");
     line("#include <assert.h>");
+    line("#include <math.h>");
+    line();
+    line("static inline int32_t __oxide_clamp_i32(int32_t val, int32_t min_val, int32_t max_val) {");
+    line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
+    line("}");
+    line("static inline float __oxide_clamp_f32(float val, float min_val, float max_val) {");
+    line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
+    line("}");
+    line("static inline double __oxide_clamp_f64(double val, double min_val, double max_val) {");
+    line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
+    line("}");
     line();
 }
 
 // Emits safety-critical runtime traps for the aerospace profile.
 // Prevents silent integer overflow bugs (Ariane 5 flight 501 root cause),
-// bounds-check failures, and unhandled division by zero via immediate process abort.
+// bounds-check failures, floating-point NaN/Inf poisoning, and unhandled division by zero via immediate process abort.
 void CCodeGenerator::emit_aerospace_traps() {
-    line("/* Safety-Critical / Aerospace Overflow Traps (NASA/JPL & Ariane 5 Mitigation) */");
+    line("/* Safety-Critical / Aerospace Traps (NASA/JPL & Ariane 5 Mitigation) */");
+    line("#if (defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)) && defined(__SSE__)");
+    line("#include <xmmintrin.h>");
+    line("#include <pmmintrin.h>");
+    line("#endif");
+    line();
+    line("static inline void __oxide_enable_aerospace_ftz(void) {");
+    line("#if (defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)) && defined(__SSE__)");
+    line("    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);");
+    line("#if defined(_MM_DENORMALS_ZERO_ON)");
+    line("    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);");
+    line("#endif");
+    line("#elif defined(__aarch64__)");
+    line("    uint64_t fpcr;");
+    line("    __asm__ __volatile__(\"mrs %0, fpcr\" : \"=r\"(fpcr));");
+    line("    fpcr |= (1ULL << 24); /* FZ bit: Flush-to-zero */");
+    line("    __asm__ __volatile__(\"msr fpcr, %0\" : : \"r\"(fpcr));");
+    line("#endif");
+    line("}");
+    line();
     line("#define __OXIDE_BOUNDS_CHECK(arr, idx, len) (((idx) >= 0 && (size_t)(idx) < (size_t)(len)) ? (arr) : (fprintf(stderr, \"AEROSPACE TRAP: array index out of bounds\\n\"), abort(), (arr)))");
     line();
     line("static inline int32_t __oxide_checked_add(int32_t a, int32_t b) {");
@@ -123,6 +156,136 @@ void CCodeGenerator::emit_aerospace_traps() {
     line("        abort();");
     line("    }");
     line("    return a / b;");
+    line("}");
+    line();
+    line("static inline float __oxide_checked_fadd_f32(float a, float b) {");
+    line("    float res = a + b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f32 addition\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline float __oxide_checked_fsub_f32(float a, float b) {");
+    line("    float res = a - b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f32 subtraction\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline float __oxide_checked_fmul_f32(float a, float b) {");
+    line("    float res = a * b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f32 multiplication\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline float __oxide_checked_fdiv_f32(float a, float b) {");
+    line("    if (b == 0.0f) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: floating-point division by zero in f32\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    float res = a / b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f32 division\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline double __oxide_checked_fadd_f64(double a, double b) {");
+    line("    double res = a + b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f64 addition\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline double __oxide_checked_fsub_f64(double a, double b) {");
+    line("    double res = a - b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f64 subtraction\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline double __oxide_checked_fmul_f64(double a, double b) {");
+    line("    double res = a * b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f64 multiplication\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline double __oxide_checked_fdiv_f64(double a, double b) {");
+    line("    if (b == 0.0) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: floating-point division by zero in f64\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    double res = a / b;");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite float result (NaN/Inf) in f64 division\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline float __oxide_checked_fsqrt_f32(float x) {");
+    line("    if (x < 0.0f) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: square root domain error (negative input) in f32\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    float res = sqrtf(x);");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite result in f32 sqrt\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline double __oxide_checked_fsqrt_f64(double x) {");
+    line("    if (x < 0.0) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: square root domain error (negative input) in f64\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    double res = sqrt(x);");
+    line("    if (!isfinite(res)) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: non-finite result in f64 sqrt\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return res;");
+    line("}");
+    line();
+    line("static inline int32_t __oxide_checked_clamp_i32(int32_t val, int32_t min_val, int32_t max_val) {");
+    line("    if (min_val > max_val) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: invalid bounds in clamp (min > max)\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
+    line("}");
+    line();
+    line("static inline float __oxide_checked_clamp_f32(float val, float min_val, float max_val) {");
+    line("    if (!isfinite(val) || !isfinite(min_val) || !isfinite(max_val) || min_val > max_val) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: invalid arguments or NaN in f32 clamp\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
+    line("}");
+    line();
+    line("static inline double __oxide_checked_clamp_f64(double val, double min_val, double max_val) {");
+    line("    if (!isfinite(val) || !isfinite(min_val) || !isfinite(max_val) || min_val > max_val) {");
+    line("        fprintf(stderr, \"AEROSPACE TRAP: invalid arguments or NaN in f64 clamp\\n\");");
+    line("        abort();");
+    line("    }");
+    line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
     line("}");
     line();
 }
@@ -265,25 +428,57 @@ void CCodeGenerator::emit_function(const Function& fn) {
         }
     }
     out_ << ") ";
-    emit_block(*fn.body, true);
+    emit_block(*fn.body, true, fn.name == "main");
     line();
 }
 
-void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body) {
+void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body, bool is_main) {
     out_ << "{\n";
     indent_level_++;
+
+    if (is_main && aerospace_profile_) {
+        line("__oxide_enable_aerospace_ftz();");
+    }
 
     for (const auto& stmt : block.statements) {
         emit_statement(*stmt);
     }
 
     if (block.trailing_expr) {
-        indent();
-        if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
-            out_ << "return ";
+        if (auto* if_expr = dynamic_cast<const IfExpr*>(block.trailing_expr.get())) {
+            if (block.evaluated_type.kind == BaseTypeKind::Unit) {
+                indent();
+                if (dynamic_cast<const BinaryExpr*>(if_expr->condition.get())) {
+                    out_ << "if ";
+                    emit_expression(*if_expr->condition);
+                    out_ << " ";
+                } else {
+                    out_ << "if (";
+                    emit_expression(*if_expr->condition);
+                    out_ << ") ";
+                }
+                emit_block(*if_expr->then_branch, false);
+                if (if_expr->else_branch) {
+                    indent();
+                    out_ << "else ";
+                    emit_block(*if_expr->else_branch, false);
+                }
+            } else {
+                indent();
+                if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
+                    out_ << "return ";
+                }
+                emit_expression(*block.trailing_expr);
+                out_ << ";\n";
+            }
+        } else {
+            indent();
+            if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
+                out_ << "return ";
+            }
+            emit_expression(*block.trailing_expr);
+            out_ << ";\n";
         }
-        emit_expression(*block.trailing_expr);
-        out_ << ";\n";
     } else if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
         bool ends_with_return = false;
         if (!block.statements.empty()) {
@@ -327,9 +522,15 @@ void CCodeGenerator::emit_statement(const Statement& stmt) {
         if (expr_stmt->expr) {
             if (auto* if_expr = dynamic_cast<const IfExpr*>(expr_stmt->expr.get())) {
                 indent();
-                out_ << "if (";
-                emit_expression(*if_expr->condition);
-                out_ << ") ";
+                if (dynamic_cast<const BinaryExpr*>(if_expr->condition.get())) {
+                    out_ << "if ";
+                    emit_expression(*if_expr->condition);
+                    out_ << " ";
+                } else {
+                    out_ << "if (";
+                    emit_expression(*if_expr->condition);
+                    out_ << ") ";
+                }
                 emit_block(*if_expr->then_branch, false);
                 if (if_expr->else_branch) {
                     indent();
@@ -354,6 +555,17 @@ void CCodeGenerator::emit_statement(const Statement& stmt) {
 void CCodeGenerator::emit_expression(const Expression& expr) {
     if (auto* int_lit = dynamic_cast<const IntegerLiteralExpr*>(&expr)) {
         out_ << int_lit->value;
+    } else if (auto* fl_lit = dynamic_cast<const FloatLiteralExpr*>(&expr)) {
+        std::ostringstream ss;
+        ss << std::setprecision(12) << fl_lit->value;
+        std::string s = ss.str();
+        if (s.find('.') == std::string::npos && s.find('e') == std::string::npos && s.find('E') == std::string::npos) {
+            s += ".0";
+        }
+        if (fl_lit->evaluated_type.kind == BaseTypeKind::F32) {
+            s += "f";
+        }
+        out_ << s;
     } else if (auto* bool_lit = dynamic_cast<const BoolLiteralExpr*>(&expr)) {
         out_ << (bool_lit->value ? "true" : "false");
     } else if (auto* var = dynamic_cast<const VariableExpr*>(&expr)) {
@@ -362,12 +574,30 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         if (aerospace_profile_ && (bin->op == BinaryOp::Add || bin->op == BinaryOp::Sub ||
                                    bin->op == BinaryOp::Mul || bin->op == BinaryOp::Div)) {
             const char* fn_name = "";
-            switch (bin->op) {
-                case BinaryOp::Add: fn_name = "__oxide_checked_add"; break;
-                case BinaryOp::Sub: fn_name = "__oxide_checked_sub"; break;
-                case BinaryOp::Mul: fn_name = "__oxide_checked_mul"; break;
-                case BinaryOp::Div: fn_name = "__oxide_checked_div"; break;
-                default: break;
+            if (bin->evaluated_type.kind == BaseTypeKind::F32) {
+                switch (bin->op) {
+                    case BinaryOp::Add: fn_name = "__oxide_checked_fadd_f32"; break;
+                    case BinaryOp::Sub: fn_name = "__oxide_checked_fsub_f32"; break;
+                    case BinaryOp::Mul: fn_name = "__oxide_checked_fmul_f32"; break;
+                    case BinaryOp::Div: fn_name = "__oxide_checked_fdiv_f32"; break;
+                    default: break;
+                }
+            } else if (bin->evaluated_type.kind == BaseTypeKind::F64) {
+                switch (bin->op) {
+                    case BinaryOp::Add: fn_name = "__oxide_checked_fadd_f64"; break;
+                    case BinaryOp::Sub: fn_name = "__oxide_checked_fsub_f64"; break;
+                    case BinaryOp::Mul: fn_name = "__oxide_checked_fmul_f64"; break;
+                    case BinaryOp::Div: fn_name = "__oxide_checked_fdiv_f64"; break;
+                    default: break;
+                }
+            } else {
+                switch (bin->op) {
+                    case BinaryOp::Add: fn_name = "__oxide_checked_add"; break;
+                    case BinaryOp::Sub: fn_name = "__oxide_checked_sub"; break;
+                    case BinaryOp::Mul: fn_name = "__oxide_checked_mul"; break;
+                    case BinaryOp::Div: fn_name = "__oxide_checked_div"; break;
+                    default: break;
+                }
             }
             out_ << fn_name << "(";
             emit_expression(*bin->left);
@@ -430,6 +660,8 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
                                 c_fmt += "%s";
                             } else if (arg_t.kind == BaseTypeKind::Bool) {
                                 c_fmt += "%s";
+                            } else if (arg_t.kind == BaseTypeKind::F32 || arg_t.kind == BaseTypeKind::F64) {
+                                c_fmt += "%f";
                             } else {
                                 c_fmt += "%d";
                             }
@@ -471,6 +703,50 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
                 out_ << ", ";
             }
             out_ << "fprintf(stderr, \"\\n\"), abort())";
+            return;
+        }
+        if (call->callee == "sqrt") {
+            if (aerospace_profile_) {
+                if (call->evaluated_type.kind == BaseTypeKind::F32) {
+                    out_ << "__oxide_checked_fsqrt_f32(";
+                } else {
+                    out_ << "__oxide_checked_fsqrt_f64(";
+                }
+            } else {
+                if (call->evaluated_type.kind == BaseTypeKind::F32) {
+                    out_ << "sqrtf(";
+                } else {
+                    out_ << "sqrt(";
+                }
+            }
+            emit_expression(*call->arguments[0]);
+            out_ << ")";
+            return;
+        }
+        if (call->callee == "clamp") {
+            if (aerospace_profile_) {
+                if (call->evaluated_type.kind == BaseTypeKind::F32) {
+                    out_ << "__oxide_checked_clamp_f32(";
+                } else if (call->evaluated_type.kind == BaseTypeKind::F64) {
+                    out_ << "__oxide_checked_clamp_f64(";
+                } else {
+                    out_ << "__oxide_checked_clamp_i32(";
+                }
+            } else {
+                if (call->evaluated_type.kind == BaseTypeKind::F32) {
+                    out_ << "__oxide_clamp_f32(";
+                } else if (call->evaluated_type.kind == BaseTypeKind::F64) {
+                    out_ << "__oxide_clamp_f64(";
+                } else {
+                    out_ << "__oxide_clamp_i32(";
+                }
+            }
+            emit_expression(*call->arguments[0]);
+            out_ << ", ";
+            emit_expression(*call->arguments[1]);
+            out_ << ", ";
+            emit_expression(*call->arguments[2]);
+            out_ << ")";
             return;
         }
 
@@ -588,9 +864,15 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << "." << fa->field_name << ")";
         }
     } else if (auto* while_expr = dynamic_cast<const WhileExpr*>(&expr)) {
-        out_ << "while (";
-        emit_expression(*while_expr->condition);
-        out_ << ") ";
+        if (dynamic_cast<const BinaryExpr*>(while_expr->condition.get())) {
+            out_ << "while ";
+            emit_expression(*while_expr->condition);
+            out_ << " ";
+        } else {
+            out_ << "while (";
+            emit_expression(*while_expr->condition);
+            out_ << ") ";
+        }
         emit_block(*while_expr->body, false);
     } else if (auto* ev = dynamic_cast<const EnumVariantExpr*>(&expr)) {
         out_ << ev->enum_name << "_" << ev->variant_name << "(";

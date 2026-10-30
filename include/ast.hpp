@@ -21,6 +21,8 @@ enum class BaseTypeKind {
     Named,        ///< Nominal user-defined struct or enum (e.g., Point, Status, Option)
     GenericParam, ///< Unbound type parameter during generic definition (e.g., T, E)
     PhysicalUnit, ///< SI physical unit dimension (e.g., Meter, Second, Kilogram, Newton, Pascal)
+    F32,          ///< Single-precision 32-bit floating point (IEEE 754)
+    F64,          ///< Double-precision 64-bit floating point (IEEE 754)
 };
 
 /**
@@ -142,6 +144,12 @@ struct Expression : public ASTNode {
 struct IntegerLiteralExpr : public Expression {
     int64_t value = 0;
     explicit IntegerLiteralExpr(int64_t val, SourceLocation loc) : value(val) { location = loc; }
+    void dump(int indent = 0) const override;
+};
+
+struct FloatLiteralExpr : public Expression {
+    double value = 0.0;
+    explicit FloatLiteralExpr(double val, SourceLocation loc) : value(val) { location = loc; }
     void dump(int indent = 0) const override;
 };
 

@@ -44,11 +44,14 @@ enum class TokenType {
 
     // Built-in primitive types
     TypeI32,       // 'i32' - 32-bit signed two's complement integer
+    TypeF32,       // 'f32' - 32-bit single-precision IEEE 754 floating point
+    TypeF64,       // 'f64' - 64-bit double-precision IEEE 754 floating point
     TypeBool,      // 'bool' - boolean flag
     TypeStr,       // 'str' - UTF-8 string slice
 
     // Literal value tokens
     LiteralInt,    // Decimal integer sequence (e.g., 42, 1000)
+    LiteralFloat,  // Floating point sequence (e.g., 3.14159, 0.0)
     LiteralBool,   // Evaluated boolean constant
     LiteralString, // Double-quoted string literal (e.g., "Hello, world!\n")
 
@@ -107,6 +110,7 @@ struct Token {
     int64_t int_value = 0;   ///< Pre-evaluated integer value for LiteralInt.
     bool bool_value = false; ///< Pre-evaluated boolean value for LiteralBool.
     SourceLocation location; ///< Location where the token starts.
+    double float_value = 0.0; ///< Pre-evaluated floating point value for LiteralFloat.
 
     std::string to_string() const;
 };

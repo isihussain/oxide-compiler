@@ -340,7 +340,10 @@ void TypeChecker::check_statement(Statement& stmt) {
                 bool is_lit_init = (let->declared_type.kind == BaseTypeKind::PhysicalUnit &&
                                     init_type.kind == BaseTypeKind::I32 &&
                                     dynamic_cast<IntegerLiteralExpr*>(let->initializer.get()) != nullptr);
-                if (is_lit_init) {
+                bool is_float_init = ((let->declared_type.kind == BaseTypeKind::F32 || let->declared_type.kind == BaseTypeKind::F64) &&
+                                      (init_type.kind == BaseTypeKind::F32 || init_type.kind == BaseTypeKind::F64) &&
+                                      dynamic_cast<FloatLiteralExpr*>(let->initializer.get()) != nullptr);
+                if (is_lit_init || is_float_init) {
                     let->initializer->evaluated_type = let->declared_type;
                 } else if (!(let->declared_type == init_type)) {
                     emit_error(let->location, "mismatched types in 'let': expected '" +
@@ -364,6 +367,11 @@ Type TypeChecker::check_expression(Expression& expr) {
     if (auto* int_lit = dynamic_cast<IntegerLiteralExpr*>(&expr)) {
         int_lit->evaluated_type = Type{BaseTypeKind::I32, false, false};
         return int_lit->evaluated_type;
+    }
+
+    if (auto* fl_lit = dynamic_cast<FloatLiteralExpr*>(&expr)) {
+        fl_lit->evaluated_type = Type{BaseTypeKind::F64, false, false};
+        return fl_lit->evaluated_type;
     }
 
     if (auto* bool_lit = dynamic_cast<BoolLiteralExpr*>(&expr)) {
@@ -465,11 +473,30 @@ Type TypeChecker::check_expression(Expression& expr) {
         Type left_t = check_expression(*bin->left);
         Type right_t = check_expression(*bin->right);
 
+        if ((left_t.kind == BaseTypeKind::F32 || left_t.kind == BaseTypeKind::F64) &&
+            (right_t.kind == BaseTypeKind::F32 || right_t.kind == BaseTypeKind::F64)) {
+            if (dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
+                bin->right->evaluated_type = left_t;
+                right_t = left_t;
+            } else if (dynamic_cast<FloatLiteralExpr*>(bin->left.get())) {
+                bin->left->evaluated_type = right_t;
+                left_t = right_t;
+            }
+        }
+
         switch (bin->op) {
             case BinaryOp::Add:
             case BinaryOp::Sub: {
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
                     bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F32 && right_t.kind == BaseTypeKind::F32) {
+                    bin->evaluated_type = Type{BaseTypeKind::F32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F64 && right_t.kind == BaseTypeKind::F64) {
+                    bin->evaluated_type = Type{BaseTypeKind::F64, false, false};
                     return bin->evaluated_type;
                 }
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
@@ -488,13 +515,22 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = left_t.kind == BaseTypeKind::PhysicalUnit ? left_t : right_t;
                     return bin->evaluated_type;
                 }
-                emit_error(bin->location, "arithmetic operations only supported for 'i32' and physical units");
+                emit_error(bin->location, "mismatched types in arithmetic: cannot operate on '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
                 bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return bin->evaluated_type;
             }
             case BinaryOp::Mul: {
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
                     bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F32 && right_t.kind == BaseTypeKind::F32) {
+                    bin->evaluated_type = Type{BaseTypeKind::F32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F64 && right_t.kind == BaseTypeKind::F64) {
+                    bin->evaluated_type = Type{BaseTypeKind::F64, false, false};
                     return bin->evaluated_type;
                 }
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::PhysicalUnit) {
@@ -518,13 +554,45 @@ Type TypeChecker::check_expression(Expression& expr) {
                     }
                     return bin->evaluated_type;
                 }
-                emit_error(bin->location, "multiplication only supported for 'i32' and physical units");
+                emit_error(bin->location, "mismatched types in arithmetic: cannot operate on '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
                 bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return bin->evaluated_type;
             }
             case BinaryOp::Div: {
+                // Static check for division by zero literal
+                if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
+                    if (r_fl->value == 0.0) {
+                        emit_error(bin->location, "division by zero: floating-point divisor is 0.0");
+                    }
+                } else if (auto* un_r = dynamic_cast<UnaryExpr*>(bin->right.get())) {
+                    if (un_r->op == UnaryOp::Negate) {
+                        if (auto* inner_fl = dynamic_cast<FloatLiteralExpr*>(un_r->operand.get())) {
+                            if (inner_fl->value == 0.0) {
+                                emit_error(bin->location, "division by zero: floating-point divisor is 0.0");
+                            }
+                        } else if (auto* inner_int = dynamic_cast<IntegerLiteralExpr*>(un_r->operand.get())) {
+                            if (inner_int->value == 0) {
+                                emit_error(bin->location, "division by zero: integer divisor is 0");
+                            }
+                        }
+                    }
+                } else if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
+                    if (r_int->value == 0) {
+                        emit_error(bin->location, "division by zero: integer divisor is 0");
+                    }
+                }
+
                 if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
                     bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F32 && right_t.kind == BaseTypeKind::F32) {
+                    bin->evaluated_type = Type{BaseTypeKind::F32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F64 && right_t.kind == BaseTypeKind::F64) {
+                    bin->evaluated_type = Type{BaseTypeKind::F64, false, false};
                     return bin->evaluated_type;
                 }
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::I32) {
@@ -544,7 +612,8 @@ Type TypeChecker::check_expression(Expression& expr) {
                     }
                     return bin->evaluated_type;
                 }
-                emit_error(bin->location, "division only supported for 'i32' and physical units");
+                emit_error(bin->location, "mismatched types in arithmetic: cannot operate on '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
                 bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return bin->evaluated_type;
             }
@@ -565,6 +634,14 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                     return bin->evaluated_type;
                 }
+                if (left_t.kind == BaseTypeKind::F32 && right_t.kind == BaseTypeKind::F32) {
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::F64 && right_t.kind == BaseTypeKind::F64) {
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
+                }
                 if (left_t.kind == BaseTypeKind::PhysicalUnit && right_t.kind == BaseTypeKind::PhysicalUnit) {
                     if (!(left_t.dimension == right_t.dimension)) {
                         emit_error(bin->location, "cannot compare differing physical dimensions '" +
@@ -573,7 +650,7 @@ Type TypeChecker::check_expression(Expression& expr) {
                     bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                     return bin->evaluated_type;
                 }
-                emit_error(bin->location, "order comparison only supported for 'i32' and identical physical units");
+                emit_error(bin->location, "order comparison only supported for identical arithmetic types");
                 bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return bin->evaluated_type;
             }
@@ -584,8 +661,9 @@ Type TypeChecker::check_expression(Expression& expr) {
         Type inner_t = check_expression(*un->operand);
         switch (un->op) {
             case UnaryOp::Negate: {
-                if (inner_t.kind != BaseTypeKind::I32 && inner_t.kind != BaseTypeKind::PhysicalUnit) {
-                    emit_error(un->location, "unary minus only valid on 'i32' or physical units");
+                if (inner_t.kind != BaseTypeKind::I32 && inner_t.kind != BaseTypeKind::PhysicalUnit &&
+                    inner_t.kind != BaseTypeKind::F32 && inner_t.kind != BaseTypeKind::F64) {
+                    emit_error(un->location, "unary minus only valid on numbers or physical units");
                 }
                 un->evaluated_type = inner_t;
                 return un->evaluated_type;
@@ -630,7 +708,10 @@ Type TypeChecker::check_expression(Expression& expr) {
         bool is_lit_assign = (target_t.kind == BaseTypeKind::PhysicalUnit &&
                               val_t.kind == BaseTypeKind::I32 &&
                               dynamic_cast<IntegerLiteralExpr*>(assign->value.get()) != nullptr);
-        if (is_lit_assign) {
+        bool is_float_assign = ((target_t.kind == BaseTypeKind::F32 || target_t.kind == BaseTypeKind::F64) &&
+                                (val_t.kind == BaseTypeKind::F32 || val_t.kind == BaseTypeKind::F64) &&
+                                dynamic_cast<FloatLiteralExpr*>(assign->value.get()) != nullptr);
+        if (is_lit_assign || is_float_assign) {
             assign->value->evaluated_type = target_t;
         } else if (!(target_t == val_t)) {
             emit_error(assign->location, "mismatched types in assignment: target is '" +
@@ -668,6 +749,67 @@ Type TypeChecker::check_expression(Expression& expr) {
                 check_expression(*a);
             }
             call->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+            return call->evaluated_type;
+        }
+        if (call->callee == "sqrt") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "sqrt takes exactly 1 argument");
+                call->evaluated_type = Type{BaseTypeKind::F32, false, false};
+                return call->evaluated_type;
+            }
+            Type arg_t = check_expression(*call->arguments[0]);
+            if (arg_t.kind != BaseTypeKind::F32 && arg_t.kind != BaseTypeKind::F64) {
+                emit_error(call->arguments[0]->location, "mismatched types: sqrt requires 'f32' or 'f64', found '" + arg_t.to_string() + "'");
+            }
+            if (auto* fl_lit = dynamic_cast<FloatLiteralExpr*>(call->arguments[0].get())) {
+                if (fl_lit->value < 0.0) {
+                    emit_error(call->arguments[0]->location, "domain error: square root of negative float literal (" + std::to_string(fl_lit->value) + ")");
+                }
+            } else if (auto* un = dynamic_cast<UnaryExpr*>(call->arguments[0].get())) {
+                if (un->op == UnaryOp::Negate) {
+                    if (auto* inner_fl = dynamic_cast<FloatLiteralExpr*>(un->operand.get())) {
+                        if (inner_fl->value > 0.0) {
+                            emit_error(call->arguments[0]->location, "domain error: square root of negative float literal (-" + std::to_string(inner_fl->value) + ")");
+                        }
+                    }
+                }
+            }
+            call->evaluated_type = arg_t;
+            return call->evaluated_type;
+        }
+        if (call->callee == "clamp") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "clamp takes exactly 3 arguments (value, min, max)");
+                call->evaluated_type = Type{BaseTypeKind::F32, false, false};
+                return call->evaluated_type;
+            }
+            Type val_t = check_expression(*call->arguments[0]);
+            Type min_t = check_expression(*call->arguments[1]);
+            Type max_t = check_expression(*call->arguments[2]);
+            if (val_t.kind == BaseTypeKind::F32 || val_t.kind == BaseTypeKind::F64) {
+                if (dynamic_cast<FloatLiteralExpr*>(call->arguments[1].get())) {
+                    call->arguments[1]->evaluated_type = val_t;
+                    min_t = val_t;
+                }
+                if (dynamic_cast<FloatLiteralExpr*>(call->arguments[2].get())) {
+                    call->arguments[2]->evaluated_type = val_t;
+                    max_t = val_t;
+                }
+            }
+            if (!(val_t == min_t) || !(val_t == max_t)) {
+                emit_error(call->location, "mismatched types in clamp arguments");
+            }
+            auto* min_fl = dynamic_cast<FloatLiteralExpr*>(call->arguments[1].get());
+            auto* max_fl = dynamic_cast<FloatLiteralExpr*>(call->arguments[2].get());
+            if (min_fl && max_fl && min_fl->value > max_fl->value) {
+                emit_error(call->location, "clamp bounds error: min value is greater than max value");
+            }
+            auto* min_int = dynamic_cast<IntegerLiteralExpr*>(call->arguments[1].get());
+            auto* max_int = dynamic_cast<IntegerLiteralExpr*>(call->arguments[2].get());
+            if (min_int && max_int && min_int->value > max_int->value) {
+                emit_error(call->location, "clamp bounds error: min value is greater than max value");
+            }
+            call->evaluated_type = val_t;
             return call->evaluated_type;
         }
 
@@ -727,7 +869,10 @@ Type TypeChecker::check_expression(Expression& expr) {
                 bool is_lit = (expected_t.kind == BaseTypeKind::PhysicalUnit &&
                                arg_t.kind == BaseTypeKind::I32 &&
                                dynamic_cast<IntegerLiteralExpr*>(call->arguments[i].get()) != nullptr);
-                if (is_lit) {
+                bool is_float_lit = ((expected_t.kind == BaseTypeKind::F32 || expected_t.kind == BaseTypeKind::F64) &&
+                                     (arg_t.kind == BaseTypeKind::F32 || arg_t.kind == BaseTypeKind::F64) &&
+                                     dynamic_cast<FloatLiteralExpr*>(call->arguments[i].get()) != nullptr);
+                if (is_lit || is_float_lit) {
                     call->arguments[i]->evaluated_type = expected_t;
                 } else if (!(arg_t == expected_t)) {
                     emit_error(call->arguments[i]->location, "mismatched type in argument " +
@@ -743,7 +888,10 @@ Type TypeChecker::check_expression(Expression& expr) {
                 bool is_lit = (sig.param_types[i].kind == BaseTypeKind::PhysicalUnit &&
                                arg_t.kind == BaseTypeKind::I32 &&
                                dynamic_cast<IntegerLiteralExpr*>(call->arguments[i].get()) != nullptr);
-                if (is_lit) {
+                bool is_float_lit = ((sig.param_types[i].kind == BaseTypeKind::F32 || sig.param_types[i].kind == BaseTypeKind::F64) &&
+                                     (arg_t.kind == BaseTypeKind::F32 || arg_t.kind == BaseTypeKind::F64) &&
+                                     dynamic_cast<FloatLiteralExpr*>(call->arguments[i].get()) != nullptr);
+                if (is_lit || is_float_lit) {
                     call->arguments[i]->evaluated_type = sig.param_types[i];
                 } else if (!(arg_t == sig.param_types[i])) {
                     emit_error(call->arguments[i]->location, "mismatched type in argument " +

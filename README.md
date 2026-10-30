@@ -178,8 +178,12 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_dimension_add_mismatch.rs (correctly rejected)
 [PASS] fail_dimension_compare_mismatch.rs (correctly rejected)
 [PASS] fail_dimension_assign_mismatch.rs (correctly rejected)
+[PASS] fail_float_div_by_zero.rs (correctly rejected)
+[PASS] fail_float_sqrt_negative.rs (correctly rejected)
+[PASS] fail_float_clamp_invalid_bounds.rs (correctly rejected)
+[PASS] fail_float_type_mismatch.rs (correctly rejected)
 ==================================================
-Results: 60/60 tests passed.
+Results: 65/65 tests passed.
 ```
 
 ---
@@ -218,7 +222,7 @@ Results: 60/60 tests passed.
   - [x] Compile-time constant folding and dead code elimination pass
 - [ ] **Milestone 6: Mission-Critical Aerospace Safety Systems**
   - [x] Compile-time dimensional analysis and SI unit types (Mars Climate Orbiter mitigation)
-  - [ ] Floating-point flight safety and static NaN/Infinity propagation analysis
+  - [x] Floating-point flight safety and static NaN/Infinity propagation analysis
   - [ ] Software Triple Modular Redundancy (TMR) for cosmic radiation SEU mitigation
   - [ ] Verifiable mission flight state machines with deadlock and abort verification
   - [ ] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers

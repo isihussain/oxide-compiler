@@ -14,6 +14,8 @@ std::string Type::to_string() const {
     switch (kind) {
         case BaseTypeKind::Unit: s += "()"; break;
         case BaseTypeKind::I32: s += "i32"; break;
+        case BaseTypeKind::F32: s += "f32"; break;
+        case BaseTypeKind::F64: s += "f64"; break;
         case BaseTypeKind::Bool: s += "bool"; break;
         case BaseTypeKind::Str: s += "str"; break;
         case BaseTypeKind::Array: {
@@ -51,6 +53,8 @@ std::string Type::mangled_name() const {
     switch (kind) {
         case BaseTypeKind::Unit: s = "unit"; break;
         case BaseTypeKind::I32: s = "i32"; break;
+        case BaseTypeKind::F32: s = "f32"; break;
+        case BaseTypeKind::F64: s = "f64"; break;
         case BaseTypeKind::Bool: s = "bool"; break;
         case BaseTypeKind::Str: s = "str"; break;
         case BaseTypeKind::Array: {
@@ -86,6 +90,11 @@ static void print_indent(int indent) {
 void IntegerLiteralExpr::dump(int indent) const {
     print_indent(indent);
     std::cout << "IntLiteral(" << value << ") : " << evaluated_type.to_string() << "\n";
+}
+
+void FloatLiteralExpr::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "FloatLiteral(" << value << ") : " << evaluated_type.to_string() << "\n";
 }
 
 void BoolLiteralExpr::dump(int indent) const {
