@@ -278,6 +278,7 @@ std::string Monomorphizer::specialize_function(const std::string& orig_name, con
     auto specialized = std::make_unique<Function>(mangled, std::move(new_params), new_ret,
                                                   std::move(new_body), template_fn->location,
                                                   template_fn->abi, std::vector<std::string>{});
+    specialized->attributes = template_fn->attributes;
     specialized_functions_[mangled] = std::move(specialized);
     transform_block(*specialized_functions_[mangled]->body);
 

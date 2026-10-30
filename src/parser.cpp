@@ -65,8 +65,19 @@ std::unique_ptr<Program> Parser::parse_program() {
     }
 
     while (!is_at_end()) {
+        std::vector<std::string> pending_attrs;
+        while (check(TokenType::Hash)) {
+            advance(); // consume '#'
+            consume(TokenType::LBracket, "Expected '[' after '#'");
+            std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
+            consume(TokenType::RBracket, "Expected ']' after attribute name");
+            pending_attrs.push_back(attr);
+        }
+
         if (check(TokenType::KwFn)) {
-            program->functions.push_back(parse_function());
+            auto fn = parse_function();
+            fn->attributes = pending_attrs;
+            program->functions.push_back(std::move(fn));
         } else if (check(TokenType::KwStruct)) {
             program->structs.push_back(parse_struct_definition());
         } else if (check(TokenType::KwEnum)) {
@@ -89,6 +100,7 @@ std::unique_ptr<Program> Parser::parse_program() {
                 std::string abi = advance().text; // consume literal string
                 auto fn = parse_function();
                 fn->abi = abi;
+                fn->attributes = pending_attrs;
                 program->functions.push_back(std::move(fn));
             } else {
                 throw std::runtime_error("Unexpected token after 'extern' at [" +
@@ -228,7 +240,16 @@ std::unique_ptr<ImplBlock> Parser::parse_impl_block() {
 
     std::vector<std::unique_ptr<Function>> methods;
     while (!check(TokenType::RBrace) && !is_at_end()) {
+        std::vector<std::string> pending_attrs;
+        while (check(TokenType::Hash)) {
+            advance(); // consume '#'
+            consume(TokenType::LBracket, "Expected '[' after '#'");
+            std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
+            consume(TokenType::RBracket, "Expected ']' after attribute name");
+            pending_attrs.push_back(attr);
+        }
         auto fn = parse_function(target_type);
+        fn->attributes = pending_attrs;
         methods.push_back(std::move(fn));
     }
     consume(TokenType::RBrace, "Expected '}' to close impl block");
@@ -481,8 +502,21 @@ std::unique_ptr<BlockExpr> Parser::parse_block() {
     auto block = std::make_unique<BlockExpr>(loc);
 
     while (!check(TokenType::RBrace) && !is_at_end()) {
+        std::vector<std::string> pending_attrs;
+        while (check(TokenType::Hash)) {
+            advance(); // consume '#'
+            consume(TokenType::LBracket, "Expected '[' after '#'");
+            std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
+            consume(TokenType::RBracket, "Expected ']' after attribute name");
+            pending_attrs.push_back(attr);
+        }
+
         if (check(TokenType::KwLet)) {
-            block->statements.push_back(parse_let_statement());
+            auto let_stmt = parse_let_statement();
+            if (auto* ls = dynamic_cast<LetStmt*>(let_stmt.get())) {
+                ls->attributes = pending_attrs;
+            }
+            block->statements.push_back(std::move(let_stmt));
         } else {
             // In Rust syntax, an expression inside a block is disambiguated by its trailing punctuation:
             //  1. Followed by ';' -> An ExprStmt statement whose value is discarded.

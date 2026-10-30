@@ -66,6 +66,7 @@ const char* token_type_name(TokenType type) {
         case TokenType::RBrace: return "}";
         case TokenType::LBracket: return "[";
         case TokenType::RBracket: return "]";
+        case TokenType::Hash: return "#";
     }
     return "Unknown";
 }
@@ -230,6 +231,7 @@ Token Lexer::scan_token() {
         case ')': return Token{TokenType::RParen, ")", 0, false, loc};
         case '{': return Token{TokenType::LBrace, "{", 0, false, loc};
         case '}': return Token{TokenType::RBrace, "}", 0, false, loc};
+        case '#': return Token{TokenType::Hash, "#", 0, false, loc};
         case '"': return scan_string();
         default:
             return Token{TokenType::Invalid, std::string(1, c), 0, false, loc};

@@ -812,6 +812,52 @@ Type TypeChecker::check_expression(Expression& expr) {
             call->evaluated_type = val_t;
             return call->evaluated_type;
         }
+        if (call->callee == "tmr_vote") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "tmr_vote takes exactly 3 arguments (channel0, channel1, channel2)");
+                call->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return call->evaluated_type;
+            }
+            Type t0 = check_expression(*call->arguments[0]);
+            Type t1 = check_expression(*call->arguments[1]);
+            Type t2 = check_expression(*call->arguments[2]);
+
+            if (t0.kind == BaseTypeKind::F32 || t0.kind == BaseTypeKind::F64) {
+                if (dynamic_cast<FloatLiteralExpr*>(call->arguments[1].get())) {
+                    call->arguments[1]->evaluated_type = t0;
+                    t1 = t0;
+                }
+                if (dynamic_cast<FloatLiteralExpr*>(call->arguments[2].get())) {
+                    call->arguments[2]->evaluated_type = t0;
+                    t2 = t0;
+                }
+            }
+
+            if (!(t0 == t1) || !(t0 == t2)) {
+                emit_error(call->location, "mismatched types across TMR channels: all 3 channels must have identical types");
+            }
+
+            auto* i0 = dynamic_cast<IntegerLiteralExpr*>(call->arguments[0].get());
+            auto* i1 = dynamic_cast<IntegerLiteralExpr*>(call->arguments[1].get());
+            auto* i2 = dynamic_cast<IntegerLiteralExpr*>(call->arguments[2].get());
+            if (i0 && i1 && i2) {
+                if (i0->value != i1->value && i0->value != i2->value && i1->value != i2->value) {
+                    emit_error(call->location, "radiation mitigation error: static TMR voter discordance (no majority between constants " +
+                               std::to_string(i0->value) + ", " + std::to_string(i1->value) + ", " + std::to_string(i2->value) + ")");
+                }
+            }
+            auto* f0 = dynamic_cast<FloatLiteralExpr*>(call->arguments[0].get());
+            auto* f1 = dynamic_cast<FloatLiteralExpr*>(call->arguments[1].get());
+            auto* f2 = dynamic_cast<FloatLiteralExpr*>(call->arguments[2].get());
+            if (f0 && f1 && f2) {
+                if (f0->value != f1->value && f0->value != f2->value && f1->value != f2->value) {
+                    emit_error(call->location, "radiation mitigation error: static TMR voter discordance (no majority between constants)");
+                }
+            }
+
+            call->evaluated_type = t0;
+            return call->evaluated_type;
+        }
 
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {

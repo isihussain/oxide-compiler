@@ -95,6 +95,66 @@ void CCodeGenerator::emit_includes() {
     line("    return val < min_val ? min_val : (val > max_val ? max_val : val);");
     line("}");
     line();
+    line("/* Software Triple Modular Redundancy (TMR) Voters (Cosmic SEU Mitigation) */");
+    line("static inline int32_t __oxide_tmr_vote_i32(int32_t c0, int32_t c1, int32_t c2, const char* context) {");
+    line("    if (c0 == c1) {");
+    line("        if (c0 != c2) fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 2 bitflip mitigated (%d vs %d)\\n\", context, c2, c0);");
+    line("        return c0;");
+    line("    }");
+    line("    if (c0 == c2) {");
+    line("        fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 1 bitflip mitigated (%d vs %d)\\n\", context, c1, c0);");
+    line("        return c0;");
+    line("    }");
+    line("    if (c1 == c2) {");
+    line("        fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 0 bitflip mitigated (%d vs %d)\\n\", context, c0, c1);");
+    line("        return c1;");
+    line("    }");
+    line("    fprintf(stderr, \"AEROSPACE TRAP: unrecoverable multi-bit radiation upset in %s (%d, %d, %d)\\n\", context, c0, c1, c2);");
+    line("    abort();");
+    line("}");
+    line();
+    line("static inline float __oxide_tmr_vote_f32(float c0, float c1, float c2, const char* context) {");
+    line("    if (c0 == c1) {");
+    line("        if (c0 != c2) fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 2 bitflip mitigated (%f vs %f)\\n\", context, c2, c0);");
+    line("        return c0;");
+    line("    }");
+    line("    if (c0 == c2) {");
+    line("        fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 1 bitflip mitigated (%f vs %f)\\n\", context, c1, c0);");
+    line("        return c0;");
+    line("    }");
+    line("    if (c1 == c2) {");
+    line("        fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 0 bitflip mitigated (%f vs %f)\\n\", context, c0, c1);");
+    line("        return c1;");
+    line("    }");
+    line("    fprintf(stderr, \"AEROSPACE TRAP: unrecoverable multi-bit radiation upset in %s (%f, %f, %f)\\n\", context, c0, c1, c2);");
+    line("    abort();");
+    line("}");
+    line();
+    line("static inline double __oxide_tmr_vote_f64(double c0, double c1, double c2, const char* context) {");
+    line("    if (c0 == c1) {");
+    line("        if (c0 != c2) fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 2 bitflip mitigated (%f vs %f)\\n\", context, c2, c0);");
+    line("        return c0;");
+    line("    }");
+    line("    if (c0 == c2) {");
+    line("        fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 1 bitflip mitigated (%f vs %f)\\n\", context, c1, c0);");
+    line("        return c0;");
+    line("    }");
+    line("    if (c1 == c2) {");
+    line("        fprintf(stderr, \"[OXIDE TELEMETRY] TMR SEU in %s: channel 0 bitflip mitigated (%f vs %f)\\n\", context, c0, c1);");
+    line("        return c1;");
+    line("    }");
+    line("    fprintf(stderr, \"AEROSPACE TRAP: unrecoverable multi-bit radiation upset in %s (%f, %f, %f)\\n\", context, c0, c1, c2);");
+    line("    abort();");
+    line("}");
+    line();
+    line("static inline bool __oxide_tmr_vote_bool(bool c0, bool c1, bool c2, const char* context) {");
+    line("    if (c0 == c1) return c0;");
+    line("    if (c0 == c2) return c0;");
+    line("    if (c1 == c2) return c1;");
+    line("    fprintf(stderr, \"AEROSPACE TRAP: unrecoverable multi-bit radiation upset in %s\\n\", context);");
+    line("    abort();");
+    line("}");
+    line();
 }
 
 // Emits safety-critical runtime traps for the aerospace profile.
@@ -417,6 +477,65 @@ void CCodeGenerator::emit_forward_declarations() {
 }
 
 void CCodeGenerator::emit_function(const Function& fn) {
+    if (fn.has_attribute("tmr")) {
+        // Emit triplicated implementation function
+        indent();
+        out_ << "static " << map_type(fn.return_type) << " " << fn.name << "__tmr_channel(";
+        if (fn.parameters.empty()) {
+            out_ << "void";
+        } else {
+            for (size_t i = 0; i < fn.parameters.size(); ++i) {
+                if (i > 0) out_ << ", ";
+                out_ << map_type(fn.parameters[i].type) << " " << fn.parameters[i].name;
+            }
+        }
+        out_ << ") ";
+        emit_block(*fn.body, true, false);
+        line();
+
+        // Emit public wrapper executing 3 channels and voting
+        indent();
+        out_ << map_type(fn.return_type) << " " << fn.name << "(";
+        if (fn.parameters.empty()) {
+            out_ << "void";
+        } else {
+            for (size_t i = 0; i < fn.parameters.size(); ++i) {
+                if (i > 0) out_ << ", ";
+                out_ << map_type(fn.parameters[i].type) << " " << fn.parameters[i].name;
+            }
+        }
+        out_ << ") {\n";
+        indent_level_++;
+        std::string args_str;
+        for (size_t i = 0; i < fn.parameters.size(); ++i) {
+            if (i > 0) args_str += ", ";
+            args_str += fn.parameters[i].name;
+        }
+        if (fn.return_type.kind == BaseTypeKind::Unit) {
+            line(fn.name + "__tmr_channel(" + args_str + ");");
+            line(fn.name + "__tmr_channel(" + args_str + ");");
+            line(fn.name + "__tmr_channel(" + args_str + ");");
+        } else {
+            std::string t_str = map_type(fn.return_type);
+            line(t_str + " _ch0 = " + fn.name + "__tmr_channel(" + args_str + ");");
+            line(t_str + " _ch1 = " + fn.name + "__tmr_channel(" + args_str + ");");
+            line(t_str + " _ch2 = " + fn.name + "__tmr_channel(" + args_str + ");");
+            const char* voter = "__oxide_tmr_vote_i32";
+            if (fn.return_type.kind == BaseTypeKind::F32) {
+                voter = "__oxide_tmr_vote_f32";
+            } else if (fn.return_type.kind == BaseTypeKind::F64) {
+                voter = "__oxide_tmr_vote_f64";
+            } else if (fn.return_type.kind == BaseTypeKind::Bool) {
+                voter = "__oxide_tmr_vote_bool";
+            }
+            line("return " + std::string(voter) + "(_ch0, _ch1, _ch2, \"" + fn.name + "\");");
+        }
+        indent_level_--;
+        line("}");
+        line();
+        return;
+    }
+
     indent();
     out_ << map_type(fn.return_type) << " " << fn.name << "(";
     if (fn.parameters.empty()) {
@@ -747,6 +866,24 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << ", ";
             emit_expression(*call->arguments[2]);
             out_ << ")";
+            return;
+        }
+        if (call->callee == "tmr_vote") {
+            const char* voter = "__oxide_tmr_vote_i32";
+            if (call->evaluated_type.kind == BaseTypeKind::F32) {
+                voter = "__oxide_tmr_vote_f32";
+            } else if (call->evaluated_type.kind == BaseTypeKind::F64) {
+                voter = "__oxide_tmr_vote_f64";
+            } else if (call->evaluated_type.kind == BaseTypeKind::Bool) {
+                voter = "__oxide_tmr_vote_bool";
+            }
+            out_ << voter << "(";
+            emit_expression(*call->arguments[0]);
+            out_ << ", ";
+            emit_expression(*call->arguments[1]);
+            out_ << ", ";
+            emit_expression(*call->arguments[2]);
+            out_ << ", \"tmr_vote\")";
             return;
         }
 

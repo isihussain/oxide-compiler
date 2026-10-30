@@ -36,6 +36,7 @@ def run():
         ("examples/18_constant_folding.rs", 42, []),
         ("examples/19_dimensional_analysis.rs", 42, []),
         ("examples/20_floating_point_safety.rs", 42, ["--profile=aerospace"]),
+        ("examples/21_software_tmr.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -107,6 +108,9 @@ def run():
         ("tests/ui/fail_float_sqrt_negative.rs", "domain error: square root of negative float literal", []),
         ("tests/ui/fail_float_clamp_invalid_bounds.rs", "clamp bounds error: min value is greater than max value", []),
         ("tests/ui/fail_float_type_mismatch.rs", "mismatched types in arithmetic: cannot operate on 'f32' and 'i32'", []),
+        ("tests/ui/fail_tmr_static_discordance.rs", "radiation mitigation error: static TMR voter discordance", []),
+        ("tests/ui/fail_tmr_type_mismatch.rs", "mismatched types across TMR channels", []),
+        ("tests/ui/fail_tmr_arity.rs", "tmr_vote takes exactly 3 arguments", []),
     ]
 
     for item in negative_tests:

@@ -182,8 +182,11 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_float_sqrt_negative.rs (correctly rejected)
 [PASS] fail_float_clamp_invalid_bounds.rs (correctly rejected)
 [PASS] fail_float_type_mismatch.rs (correctly rejected)
+[PASS] fail_tmr_static_discordance.rs (correctly rejected)
+[PASS] fail_tmr_type_mismatch.rs (correctly rejected)
+[PASS] fail_tmr_arity.rs (correctly rejected)
 ==================================================
-Results: 65/65 tests passed.
+Results: 69/69 tests passed.
 ```
 
 ---
@@ -223,7 +226,7 @@ Results: 65/65 tests passed.
 - [ ] **Milestone 6: Mission-Critical Aerospace Safety Systems**
   - [x] Compile-time dimensional analysis and SI unit types (Mars Climate Orbiter mitigation)
   - [x] Floating-point flight safety and static NaN/Infinity propagation analysis
-  - [ ] Software Triple Modular Redundancy (TMR) for cosmic radiation SEU mitigation
+  - [x] Software Triple Modular Redundancy (TMR) for cosmic radiation SEU mitigation
   - [ ] Verifiable mission flight state machines with deadlock and abort verification
   - [ ] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers
   - [ ] Deterministic fixed-point arithmetic (Q-format) for backup flight controllers

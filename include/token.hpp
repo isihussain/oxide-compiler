@@ -87,6 +87,7 @@ enum class TokenType {
     RBrace,        // '}'
     LBracket,      // '['
     RBracket,      // ']'
+    Hash,          // '#' (attribute prefix e.g. #[tmr])
 };
 
 /**

@@ -380,6 +380,14 @@ struct LetStmt : public Statement {
     bool is_mutable = false;
     Type declared_type;
     std::unique_ptr<Expression> initializer; // Can be nullptr
+    std::vector<std::string> attributes;
+
+    bool has_attribute(const std::string& attr) const {
+        for (const auto& a : attributes) {
+            if (a == attr) return true;
+        }
+        return false;
+    }
 
     LetStmt(std::string name, bool is_mut, Type type, std::unique_ptr<Expression> init, SourceLocation loc)
         : var_name(std::move(name)), is_mutable(is_mut), declared_type(type), initializer(std::move(init)) { location = loc; }
@@ -418,6 +426,14 @@ struct Function : public ASTNode {
     std::vector<Parameter> parameters;
     Type return_type;
     std::unique_ptr<BlockExpr> body;
+    std::vector<std::string> attributes;
+
+    bool has_attribute(const std::string& attr) const {
+        for (const auto& a : attributes) {
+            if (a == attr) return true;
+        }
+        return false;
+    }
 
     Function(std::string name, std::vector<Parameter> params, Type ret_type,
              std::unique_ptr<BlockExpr> body, SourceLocation loc, std::string abi = "",
