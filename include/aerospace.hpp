@@ -2,6 +2,7 @@
 
 #include "ast.hpp"
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -39,6 +40,8 @@ private:
     void check_recursion();
     void check_loop_bounds();
     void check_memory_allocation();
+    void check_volatile_barriers();
+    void check_block_barriers(const BlockExpr& block, std::optional<SourceLocation>& last_write_loc);
 
     void emit_error(SourceLocation loc, const std::string& message);
 

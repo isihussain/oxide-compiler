@@ -53,6 +53,7 @@ Rust Source (.rs)
   - NASA/JPL Flight Software Rule 3: Rejects direct and indirect recursion via call-graph cycle analysis.
   - Checked arithmetic traps (`__builtin_add_overflow`, etc.) and array bounds traps to prevent unhandled integer overflow failures (Ariane 5 mitigation) and out-of-bounds memory corruption.
 * **Mission State Machine Verifier (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Verifies state transitions and reachability in `state_machine` blocks. Enforces transition exhaustiveness, detects sequencing deadlocks on non-terminal states without outgoing transitions, detects closed trap cycles lacking escape paths to terminal/abort states, and lowers state definitions into C99 enums with static/runtime transition checkers.
+* **MMIO & Hardware Barrier Verifier (`src/typeck.cpp`, `src/aerospace.cpp`, `src/codegen_c.cpp`)**: Provides type-safe hardware register access with `VolatileRegister<T, Mode>`. Enforces access permissions (`ReadOnly`, `WriteOnly`, `ReadWrite`), prevents compiler write coalescing via volatile semantics, and verifies memory sequence barriers between consecutive actuator commands under `--profile=aerospace`.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations and dead code elimination following early returns.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
@@ -141,6 +142,7 @@ Running Oxide Conformance Test Suite...
 [PASS] 20_floating_point_safety.rs (exit code: 42)
 [PASS] 21_software_tmr.rs (exit code: 42)
 [PASS] 22_mission_state_machine.rs (exit code: 42)
+[PASS] 23_mmio_volatile_barriers.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -193,8 +195,11 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_state_machine_deadlock_trap.rs (correctly rejected)
 [PASS] fail_state_machine_terminal_transition.rs (correctly rejected)
 [PASS] fail_state_machine_unknown_state.rs (correctly rejected)
+[PASS] fail_mmio_write_readonly.rs (correctly rejected)
+[PASS] fail_mmio_read_writeonly.rs (correctly rejected)
+[PASS] fail_mmio_missing_barrier.rs (correctly rejected)
 ==================================================
-Results: 74/74 tests passed.
+Results: 78/78 tests passed.
 ```
 
 ---
@@ -236,7 +241,7 @@ Results: 74/74 tests passed.
   - [x] Floating-point flight safety and static NaN/Infinity propagation analysis
   - [x] Software Triple Modular Redundancy (TMR) for cosmic radiation SEU mitigation
   - [x] Verifiable mission flight state machines with deadlock and abort verification
-  - [ ] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers
+  - [x] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers
   - [ ] Deterministic fixed-point arithmetic (Q-format) for backup flight controllers
 
 ---

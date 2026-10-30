@@ -158,6 +158,16 @@ void CCodeGenerator::emit_includes() {
     line("    abort();");
     line("}");
     line();
+    line("/* Type-safe Memory-Mapped I/O (MMIO) and Hardware Sequence Barriers */");
+    line("typedef struct {");
+    line("    int32_t address;");
+    line("    int32_t value;");
+    line("} VolatileRegister;");
+    line();
+    line("static inline void __oxide_memory_barrier(void) {");
+    line("    __asm__ __volatile__(\"\" ::: \"memory\");");
+    line("}");
+    line();
 }
 
 // Emits safety-critical runtime traps for the aerospace profile.
@@ -994,6 +1004,23 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             return;
         }
 
+        if (call->callee == "VolatileRegister::new") {
+            out_ << "((VolatileRegister){ .address = ";
+            emit_expression(*call->arguments[0]);
+            out_ << ", .value = ";
+            if (call->arguments.size() > 1) {
+                emit_expression(*call->arguments[1]);
+            } else {
+                out_ << "0";
+            }
+            out_ << " })";
+            return;
+        }
+        if (call->callee == "memory_barrier") {
+            out_ << "__oxide_memory_barrier()";
+            return;
+        }
+
         std::string callee = call->callee;
         size_t pos = 0;
         while ((pos = callee.find("::", pos)) != std::string::npos) {
@@ -1007,6 +1034,26 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
         }
         out_ << ")";
     } else if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        if (mc->resolved_callee == "VolatileRegister__read") {
+            out_ << "( *(volatile int32_t*)(&(";
+            emit_expression(*mc->receiver);
+            out_ << ").value) )";
+            return;
+        }
+        if (mc->resolved_callee == "VolatileRegister__write") {
+            out_ << "( *(volatile int32_t*)(&(";
+            emit_expression(*mc->receiver);
+            out_ << ").value) = ";
+            emit_expression(*mc->arguments[0]);
+            out_ << " )";
+            return;
+        }
+        if (mc->resolved_callee == "VolatileRegister__addr") {
+            out_ << "( (";
+            emit_expression(*mc->receiver);
+            out_ << ").address )";
+            return;
+        }
         if (mc->resolved_callee == "Option__is_some") {
             out_ << "((";
             emit_expression(*mc->receiver);

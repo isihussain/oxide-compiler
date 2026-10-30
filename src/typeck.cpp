@@ -63,6 +63,14 @@ void TypeChecker::register_structs() {
         }
         struct_table_[s->name] = std::move(sig);
     }
+
+    struct_table_["ReadOnly"] = StructSignature{"ReadOnly", {}, {}, {}, SourceLocation{0, 0}};
+    struct_table_["WriteOnly"] = StructSignature{"WriteOnly", {}, {}, {}, SourceLocation{0, 0}};
+    struct_table_["ReadWrite"] = StructSignature{"ReadWrite", {}, {}, {}, SourceLocation{0, 0}};
+    struct_table_["VolatileRegister"] = StructSignature{"VolatileRegister", {"T", "Mode"}, {
+        {"address", Type{BaseTypeKind::I32, false, false}},
+        {"value", Type{BaseTypeKind::GenericParam, "T", false, false}}
+    }, {"address", "value"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -470,6 +478,10 @@ void TypeChecker::check_statement(Statement& stmt) {
         if (let->initializer) {
             Type init_type = check_expression(*let->initializer);
             if (let->declared_type.kind != BaseTypeKind::Unit) {
+                if (let->declared_type.name == "VolatileRegister" && init_type.name == "VolatileRegister") {
+                    let->initializer->evaluated_type = let->declared_type;
+                    init_type = let->declared_type;
+                }
                 bool is_lit_init = (let->declared_type.kind == BaseTypeKind::PhysicalUnit &&
                                     init_type.kind == BaseTypeKind::I32 &&
                                     dynamic_cast<IntegerLiteralExpr*>(let->initializer.get()) != nullptr);
@@ -992,6 +1004,36 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "VolatileRegister::new") {
+            if (call->arguments.empty() || call->arguments.size() > 2) {
+                emit_error(call->location, "VolatileRegister::new takes 1 or 2 arguments (address, [initial_value])");
+            } else {
+                Type addr_t = check_expression(*call->arguments[0]);
+                if (addr_t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "VolatileRegister address must be 'i32'");
+                }
+                if (call->arguments.size() == 2) {
+                    check_expression(*call->arguments[1]);
+                }
+            }
+            Type t{BaseTypeKind::Named, "VolatileRegister", false, false};
+            if (!call->type_args.empty()) {
+                t.type_args = call->type_args;
+            } else {
+                t.type_args = {Type{BaseTypeKind::I32, false, false}, Type{BaseTypeKind::Named, "ReadWrite", false, false}};
+            }
+            call->evaluated_type = t;
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "memory_barrier") {
+            if (!call->arguments.empty()) {
+                emit_error(call->location, "memory_barrier takes 0 arguments");
+            }
+            call->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -1273,6 +1315,56 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_self_kind = SelfKind::Value;
                 mc->resolved_callee = "Result__unwrap";
                 mc->evaluated_type = receiver_t.type_args.empty() ? Type{BaseTypeKind::I32, false, false} : receiver_t.type_args[0];
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "VolatileRegister") {
+            std::string mode = "ReadWrite";
+            Type val_type{BaseTypeKind::I32, false, false};
+            if (!receiver_t.type_args.empty()) {
+                val_type = receiver_t.type_args[0];
+            }
+            if (receiver_t.type_args.size() > 1) {
+                mode = receiver_t.type_args[1].name;
+            }
+
+            if (mc->method_name == "read") {
+                if (mode == "WriteOnly") {
+                    emit_error(mc->location, "cannot read from WriteOnly register: mode constraint violation");
+                }
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "VolatileRegister::read takes 0 arguments");
+                }
+                mc->resolved_callee = "VolatileRegister__read";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = val_type;
+                return mc->evaluated_type;
+            }
+
+            if (mc->method_name == "write") {
+                if (mode == "ReadOnly") {
+                    emit_error(mc->location, "cannot write to ReadOnly register: mode constraint violation");
+                }
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "VolatileRegister::write takes exactly 1 argument");
+                } else {
+                    Type arg_t = check_expression(*mc->arguments[0]);
+                    if (!(arg_t == val_type)) {
+                        emit_error(mc->arguments[0]->location, "mismatched types in VolatileRegister::write: expected '" +
+                                   val_type.to_string() + "', found '" + arg_t.to_string() + "'");
+                    }
+                }
+                mc->resolved_callee = "VolatileRegister__write";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+
+            if (mc->method_name == "addr" || mc->method_name == "address") {
+                mc->resolved_callee = "VolatileRegister__addr";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;
             }
         }

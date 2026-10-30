@@ -280,6 +280,18 @@ Token Lexer::scan_identifier_or_keyword() {
 Token Lexer::scan_number() {
     SourceLocation loc{line_, column_};
     size_t start = cursor_;
+
+    if (peek() == '0' && (peek_next() == 'x' || peek_next() == 'X')) {
+        advance(); // consume '0'
+        advance(); // consume 'x' or 'X'
+        while (!is_at_end() && std::isxdigit(peek())) {
+            advance();
+        }
+        std::string text = source_.substr(start, cursor_ - start);
+        int64_t val = std::stoll(text, nullptr, 16);
+        return Token{TokenType::LiteralInt, text, val, false, loc};
+    }
+
     while (!is_at_end() && std::isdigit(peek())) {
         advance();
     }

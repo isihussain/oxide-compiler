@@ -38,6 +38,7 @@ def run():
         ("examples/20_floating_point_safety.rs", 42, ["--profile=aerospace"]),
         ("examples/21_software_tmr.rs", 42, ["--profile=aerospace"]),
         ("examples/22_mission_state_machine.rs", 42, []),
+        ("examples/23_mmio_volatile_barriers.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -116,6 +117,9 @@ def run():
         ("tests/ui/fail_state_machine_deadlock_trap.rs", "deadlock trap detected in state_machine 'TrappedSequence'", []),
         ("tests/ui/fail_state_machine_terminal_transition.rs", "terminal state 'End' cannot have outgoing transitions", []),
         ("tests/ui/fail_state_machine_unknown_state.rs", "unknown state 'NonExistent' in transition", []),
+        ("tests/ui/fail_mmio_write_readonly.rs", "cannot write to ReadOnly register", []),
+        ("tests/ui/fail_mmio_read_writeonly.rs", "cannot read from WriteOnly register", []),
+        ("tests/ui/fail_mmio_missing_barrier.rs", "missing memory barrier between consecutive volatile register writes", ["--profile=aerospace"]),
     ]
 
     for item in negative_tests:

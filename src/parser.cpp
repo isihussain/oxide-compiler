@@ -881,6 +881,21 @@ std::unique_ptr<Expression> Parser::parse_primary() {
         if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Lt) {
             advance(); // consume '::'
             type_args = parse_type_arguments();
+            if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Identifier) {
+                advance(); // consume '::'
+                std::string member = advance().text;
+                if (match(TokenType::LParen)) {
+                    std::vector<std::unique_ptr<Expression>> args;
+                    if (!check(TokenType::RParen)) {
+                        do {
+                            args.push_back(parse_expression());
+                        } while (match(TokenType::Comma));
+                    }
+                    consume(TokenType::RParen, "Expected ')' after call arguments");
+                    return std::make_unique<CallExpr>(name + "::" + member, std::move(args), loc, std::move(type_args));
+                }
+                return std::make_unique<VariableExpr>(name + "::" + member, loc);
+            }
         }
 
         // Built-in macro invocation syntax: ident!(...) lowered to CallExpr with '!' suffix

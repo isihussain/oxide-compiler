@@ -378,11 +378,64 @@ void AerospaceVerifier::check_memory_allocation() {
     }
 }
 
+void AerospaceVerifier::check_block_barriers(const BlockExpr& block, std::optional<SourceLocation>& last_write_loc) {
+    for (const auto& s : block.statements) {
+        if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+            if (!es->expr) continue;
+            if (auto* mc = dynamic_cast<const MethodCallExpr*>(es->expr.get())) {
+                if (mc->method_name == "write" && mc->receiver->evaluated_type.name == "VolatileRegister") {
+                    if (last_write_loc.has_value()) {
+                        emit_error(mc->location, "hardware hazard: missing memory barrier between consecutive volatile register writes");
+                    }
+                    last_write_loc = mc->location;
+                }
+            } else if (auto* call = dynamic_cast<const CallExpr*>(es->expr.get())) {
+                if (call->callee == "memory_barrier") {
+                    last_write_loc.reset();
+                }
+            } else if (auto* if_expr = dynamic_cast<const IfExpr*>(es->expr.get())) {
+                check_block_barriers(*if_expr->then_branch, last_write_loc);
+                if (if_expr->else_branch) {
+                    check_block_barriers(*if_expr->else_branch, last_write_loc);
+                }
+            } else if (auto* while_expr = dynamic_cast<const WhileExpr*>(es->expr.get())) {
+                check_block_barriers(*while_expr->body, last_write_loc);
+            }
+        } else if (auto* let = dynamic_cast<const LetStmt*>(s.get())) {
+            if (let->initializer) {
+                if (auto* call = dynamic_cast<const CallExpr*>(let->initializer.get())) {
+                    if (call->callee == "memory_barrier") {
+                        last_write_loc.reset();
+                    }
+                }
+            }
+        }
+    }
+}
+
+void AerospaceVerifier::check_volatile_barriers() {
+    for (const auto& fn : program_.functions) {
+        if (fn->body) {
+            std::optional<SourceLocation> last_write_loc;
+            check_block_barriers(*fn->body, last_write_loc);
+        }
+    }
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            if (fn->body) {
+                std::optional<SourceLocation> last_write_loc;
+                check_block_barriers(*fn->body, last_write_loc);
+            }
+        }
+    }
+}
+
 bool AerospaceVerifier::verify() {
     build_call_graph();
     check_recursion();
     check_loop_bounds();
     check_memory_allocation();
+    check_volatile_barriers();
     return errors_.empty();
 }
 
