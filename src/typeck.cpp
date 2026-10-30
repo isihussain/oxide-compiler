@@ -133,6 +133,12 @@ void TypeChecker::register_structs() {
         {"staging_checksum", Type{BaseTypeKind::I32, false, false}},
         {"commit_count", Type{BaseTypeKind::I32, false, false}}
     }, {"active_val", "staging_val", "staging_loaded", "staging_verified", "active_checksum", "staging_checksum", "commit_count"}, SourceLocation{0, 0}};
+    struct_table_["Quaternion"] = StructSignature{"Quaternion", {}, {
+        {"w", Type{BaseTypeKind::I32, false, false}},
+        {"x", Type{BaseTypeKind::I32, false, false}},
+        {"y", Type{BaseTypeKind::I32, false, false}},
+        {"z", Type{BaseTypeKind::I32, false, false}}
+    }, {"w", "x", "y", "z"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1411,6 +1417,43 @@ Type TypeChecker::check_expression(Expression& expr) {
             return call->evaluated_type;
         }
 
+        if (call->callee == "Quaternion::new") {
+            if (call->arguments.size() != 4) {
+                emit_error(call->location, "Quaternion::new takes exactly 4 arguments (w, x, y, z)");
+            } else {
+                for (size_t i = 0; i < 4; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "Quaternion coordinate must be 'i32'");
+                    }
+                }
+                int64_t w = 0, x = 0, y = 0, z = 0;
+                bool bw = extract_const_int(call->arguments[0].get(), w);
+                bool bx = extract_const_int(call->arguments[1].get(), x);
+                bool by = extract_const_int(call->arguments[2].get(), y);
+                bool bz = extract_const_int(call->arguments[3].get(), z);
+                if (bw && bx && by && bz) {
+                    int64_t norm_sq = w*w + x*x + y*y + z*z;
+                    int64_t diff = std::abs(norm_sq - 1000000);
+                    if (diff > 2000) {
+                        emit_error(call->location, "invalid unit quaternion literal: norm squared (" +
+                                   std::to_string(norm_sq) + ") deviates from unit scale (1000000) [NASA ADCS SOHO rule: |q|^2 must equal 1.0 within tolerance]");
+                    }
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "Quaternion", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "Quaternion::identity") {
+            if (!call->arguments.empty()) {
+                emit_error(call->location, "Quaternion::identity takes 0 arguments");
+            }
+            call->callee = "Quaternion__identity";
+            call->evaluated_type = Type{BaseTypeKind::Named, "Quaternion", false, false};
+            return call->evaluated_type;
+        }
+
         auto fn_it = function_table_.find(call->callee);
         if (fn_it == function_table_.end()) {
             emit_error(call->location, "cannot find function '" + call->callee + "' in this scope");
@@ -2340,6 +2383,93 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "FlightTable__staging_checksum";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "Quaternion") {
+            if (mc->method_name == "w" || mc->method_name == "x" || mc->method_name == "y" || mc->method_name == "z") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Quaternion::" + mc->method_name + " takes 0 arguments");
+                }
+                mc->resolved_callee = "Quaternion__" + mc->method_name;
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "norm_squared") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Quaternion::norm_squared takes 0 arguments");
+                }
+                mc->resolved_callee = "Quaternion__norm_squared";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_normalized") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Quaternion::is_normalized takes 0 arguments");
+                }
+                mc->resolved_callee = "Quaternion__is_normalized";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_drifted") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Quaternion::is_drifted takes 0 arguments");
+                }
+                mc->resolved_callee = "Quaternion__is_drifted";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "renormalize") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Quaternion::renormalize takes 0 arguments");
+                }
+                mc->resolved_callee = "Quaternion__renormalize";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "conjugate") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Quaternion::conjugate takes 0 arguments");
+                }
+                mc->resolved_callee = "Quaternion__conjugate";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Named, "Quaternion", false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "multiply") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Quaternion::multiply takes exactly 1 argument (other)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::Named || t.name != "Quaternion") {
+                        emit_error(mc->arguments[0]->location, "Quaternion::multiply argument must be a 'Quaternion'");
+                    }
+                }
+                mc->resolved_callee = "Quaternion__multiply";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Named, "Quaternion", false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "inject_drift") {
+                if (mc->arguments.size() != 4) {
+                    emit_error(mc->location, "Quaternion::inject_drift takes exactly 4 arguments (dw, dx, dy, dz)");
+                } else {
+                    for (size_t i = 0; i < 4; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "Quaternion::inject_drift coordinate delta must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "Quaternion__inject_drift";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
                 return mc->evaluated_type;
             }
         }
