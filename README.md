@@ -259,6 +259,12 @@ Results: 78/78 tests passed.
 
 ---
 
+## Aerospace Ecosystem & Downstream Applications
+
+Oxide's mission-critical aerospace verification passes and `StageMass` invariants power the flight dynamics and propellant depletion models in **[Open-Starship](https://github.com/isihussain/open-starship)**, an open-source trajectory optimization, cryogenic slosh, and TPS tile inspection suite for next-generation reusable launch vehicles.
+
+---
+
 ## Contributing
 
 1. Fork the repository.
