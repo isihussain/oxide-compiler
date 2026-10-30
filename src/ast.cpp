@@ -417,6 +417,25 @@ void ImplBlock::dump(int indent) const {
     std::cout << "}\n";
 }
 
+void StateMachineDef::dump(int indent) const {
+    print_indent(indent);
+    std::cout << "StateMachine " << name << " {\n";
+    for (const auto& s : states) {
+        print_indent(indent + 1);
+        std::cout << "state " << s << ";\n";
+    }
+    for (const auto& s : terminal_states) {
+        print_indent(indent + 1);
+        std::cout << "terminal " << s << ";\n";
+    }
+    for (const auto& t : transitions) {
+        print_indent(indent + 1);
+        std::cout << "transition " << t.from_state << " => " << t.to_state << ";\n";
+    }
+    print_indent(indent);
+    std::cout << "}\n";
+}
+
 void Program::dump() const {
     std::cout << "Program {\n";
     for (const auto& eb : extern_blocks) {
@@ -427,6 +446,9 @@ void Program::dump() const {
     }
     for (const auto& e : enums) {
         e->dump(1);
+    }
+    for (const auto& sm : state_machines) {
+        sm->dump(1);
     }
     for (const auto& t : traits) {
         t->dump(1);

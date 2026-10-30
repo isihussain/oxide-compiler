@@ -54,6 +54,7 @@ private:
     std::unique_ptr<Function> parse_function(const std::string& target_type = "");
     std::unique_ptr<StructDef> parse_struct_definition();
     std::unique_ptr<EnumDef> parse_enum_definition();
+    std::unique_ptr<StateMachineDef> parse_state_machine_definition();
     std::unique_ptr<TraitDef> parse_trait_definition();
     std::unique_ptr<ImplBlock> parse_impl_block();
     std::unique_ptr<ExternBlock> parse_extern_block();
@@ -83,6 +84,7 @@ private:
     std::vector<Token> tokens_;
     std::vector<std::string> current_type_params_;
     std::unordered_set<std::string> known_enums_;
+    std::unordered_set<std::string> known_state_machines_;
     std::string current_target_type_;
     size_t cursor_ = 0;
 };

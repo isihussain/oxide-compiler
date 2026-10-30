@@ -26,6 +26,7 @@ const char* token_type_name(TokenType type) {
         case TokenType::KwIn: return "in";
         case TokenType::KwSelfValue: return "self";
         case TokenType::KwExtern: return "extern";
+        case TokenType::KwStateMachine: return "state_machine";
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
         case TokenType::TypeI32: return "i32";
@@ -263,6 +264,7 @@ Token Lexer::scan_identifier_or_keyword() {
     if (text == "in") return Token{TokenType::KwIn, text, 0, false, loc};
     if (text == "self") return Token{TokenType::KwSelfValue, text, 0, false, loc};
     if (text == "extern") return Token{TokenType::KwExtern, text, 0, false, loc};
+    if (text == "state_machine") return Token{TokenType::KwStateMachine, text, 0, false, loc};
     if (text == "_") return Token{TokenType::Underscore, text, 0, false, loc};
     if (text == "true") return Token{TokenType::LiteralBool, text, 0, true, loc};
     if (text == "false") return Token{TokenType::LiteralBool, text, 0, false, loc};

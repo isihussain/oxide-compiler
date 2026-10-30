@@ -52,6 +52,7 @@ Rust Source (.rs)
   - NASA/JPL Flight Software Rule 2: Complete ban on dynamic heap memory allocation (`malloc`, `calloc`, `realloc`, `free`).
   - NASA/JPL Flight Software Rule 3: Rejects direct and indirect recursion via call-graph cycle analysis.
   - Checked arithmetic traps (`__builtin_add_overflow`, etc.) and array bounds traps to prevent unhandled integer overflow failures (Ariane 5 mitigation) and out-of-bounds memory corruption.
+* **Mission State Machine Verifier (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Verifies state transitions and reachability in `state_machine` blocks. Enforces transition exhaustiveness, detects sequencing deadlocks on non-terminal states without outgoing transitions, detects closed trap cycles lacking escape paths to terminal/abort states, and lowers state definitions into C99 enums with static/runtime transition checkers.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations and dead code elimination following early returns.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
@@ -137,6 +138,9 @@ Running Oxide Conformance Test Suite...
 [PASS] 17_standard_core_option_result.rs (exit code: 42)
 [PASS] 18_constant_folding.rs (exit code: 42)
 [PASS] 19_dimensional_analysis.rs (exit code: 42)
+[PASS] 20_floating_point_safety.rs (exit code: 42)
+[PASS] 21_software_tmr.rs (exit code: 42)
+[PASS] 22_mission_state_machine.rs (exit code: 42)
 [PASS] fail_immut_assign.rs (correctly rejected)
 [PASS] fail_type_mismatch.rs (correctly rejected)
 [PASS] fail_uninit.rs (correctly rejected)
@@ -185,8 +189,12 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_tmr_static_discordance.rs (correctly rejected)
 [PASS] fail_tmr_type_mismatch.rs (correctly rejected)
 [PASS] fail_tmr_arity.rs (correctly rejected)
+[PASS] fail_state_machine_deadlock.rs (correctly rejected)
+[PASS] fail_state_machine_deadlock_trap.rs (correctly rejected)
+[PASS] fail_state_machine_terminal_transition.rs (correctly rejected)
+[PASS] fail_state_machine_unknown_state.rs (correctly rejected)
 ==================================================
-Results: 69/69 tests passed.
+Results: 74/74 tests passed.
 ```
 
 ---
@@ -227,7 +235,7 @@ Results: 69/69 tests passed.
   - [x] Compile-time dimensional analysis and SI unit types (Mars Climate Orbiter mitigation)
   - [x] Floating-point flight safety and static NaN/Infinity propagation analysis
   - [x] Software Triple Modular Redundancy (TMR) for cosmic radiation SEU mitigation
-  - [ ] Verifiable mission flight state machines with deadlock and abort verification
+  - [x] Verifiable mission flight state machines with deadlock and abort verification
   - [ ] Type-safe Memory-Mapped I/O (MMIO) and volatile register sequence barriers
   - [ ] Deterministic fixed-point arithmetic (Q-format) for backup flight controllers
 

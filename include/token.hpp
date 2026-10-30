@@ -39,6 +39,7 @@ enum class TokenType {
     KwIn,          // 'in' - membership / iterator delimiter
     KwSelfValue,   // 'self' - receiver value/reference in methods
     KwExtern,      // 'extern' - foreign function interface (FFI) block
+    KwStateMachine,// 'state_machine' - verifiable aerospace state machine
     KwTrue,        // 'true' - boolean true literal
     KwFalse,       // 'false' - boolean false literal
 

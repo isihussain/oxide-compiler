@@ -37,6 +37,7 @@ def run():
         ("examples/19_dimensional_analysis.rs", 42, []),
         ("examples/20_floating_point_safety.rs", 42, ["--profile=aerospace"]),
         ("examples/21_software_tmr.rs", 42, ["--profile=aerospace"]),
+        ("examples/22_mission_state_machine.rs", 42, []),
     ]
 
     passed = 0
@@ -111,6 +112,10 @@ def run():
         ("tests/ui/fail_tmr_static_discordance.rs", "radiation mitigation error: static TMR voter discordance", []),
         ("tests/ui/fail_tmr_type_mismatch.rs", "mismatched types across TMR channels", []),
         ("tests/ui/fail_tmr_arity.rs", "tmr_vote takes exactly 3 arguments", []),
+        ("tests/ui/fail_state_machine_deadlock.rs", "non-terminal state 'Stuck' has no outgoing transitions", []),
+        ("tests/ui/fail_state_machine_deadlock_trap.rs", "deadlock trap detected in state_machine 'TrappedSequence'", []),
+        ("tests/ui/fail_state_machine_terminal_transition.rs", "terminal state 'End' cannot have outgoing transitions", []),
+        ("tests/ui/fail_state_machine_unknown_state.rs", "unknown state 'NonExistent' in transition", []),
     ]
 
     for item in negative_tests:

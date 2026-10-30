@@ -62,6 +62,10 @@ std::unique_ptr<Program> Parser::parse_program() {
             tokens_[i + 1].type == TokenType::Identifier) {
             known_enums_.insert(tokens_[i + 1].text);
         }
+        if (tokens_[i].type == TokenType::KwStateMachine && i + 1 < tokens_.size() &&
+            tokens_[i + 1].type == TokenType::Identifier) {
+            known_state_machines_.insert(tokens_[i + 1].text);
+        }
     }
 
     while (!is_at_end()) {
@@ -82,6 +86,8 @@ std::unique_ptr<Program> Parser::parse_program() {
             program->structs.push_back(parse_struct_definition());
         } else if (check(TokenType::KwEnum)) {
             program->enums.push_back(parse_enum_definition());
+        } else if (check(TokenType::KwStateMachine)) {
+            program->state_machines.push_back(parse_state_machine_definition());
         } else if (check(TokenType::KwTrait)) {
             program->traits.push_back(parse_trait_definition());
         } else if (check(TokenType::KwImpl)) {
@@ -188,6 +194,45 @@ std::unique_ptr<EnumDef> Parser::parse_enum_definition() {
 
     consume(TokenType::RBrace, "Expected '}' after enum variants");
     return std::make_unique<EnumDef>(name, std::move(variants), loc);
+}
+
+std::unique_ptr<StateMachineDef> Parser::parse_state_machine_definition() {
+    SourceLocation loc = consume(TokenType::KwStateMachine, "Expected 'state_machine'").location;
+    std::string name = consume(TokenType::Identifier, "Expected state machine name").text;
+    consume(TokenType::LBrace, "Expected '{' after state machine name");
+
+    std::vector<std::string> states;
+    std::vector<std::string> terminal_states;
+    std::vector<StateMachineTransition> transitions;
+
+    while (!check(TokenType::RBrace) && !is_at_end()) {
+        if (check(TokenType::Identifier) && peek().text == "state") {
+            advance(); // consume 'state'
+            const Token& state_tok = consume(TokenType::Identifier, "Expected state identifier after 'state'");
+            consume(TokenType::Semicolon, "Expected ';' after state declaration");
+            states.push_back(state_tok.text);
+        } else if (check(TokenType::Identifier) && peek().text == "terminal") {
+            advance(); // consume 'terminal'
+            const Token& term_tok = consume(TokenType::Identifier, "Expected state identifier after 'terminal'");
+            consume(TokenType::Semicolon, "Expected ';' after terminal declaration");
+            terminal_states.push_back(term_tok.text);
+        } else if (check(TokenType::Identifier) && peek().text == "transition") {
+            SourceLocation trans_loc = advance().location; // consume 'transition'
+            const Token& from_tok = consume(TokenType::Identifier, "Expected source state identifier after 'transition'");
+            consume(TokenType::FatArrow, "Expected '=>' in transition declaration");
+            const Token& to_tok = consume(TokenType::Identifier, "Expected target state identifier after '=>'");
+            consume(TokenType::Semicolon, "Expected ';' after transition declaration");
+            transitions.push_back(StateMachineTransition{from_tok.text, to_tok.text, trans_loc});
+        } else {
+            const auto& tok = peek();
+            throw std::runtime_error("Parse error at [" + std::to_string(tok.location.line) + ":" +
+                                     std::to_string(tok.location.column) + "]: unexpected token '" +
+                                     tok.text + "' in state machine definition");
+        }
+    }
+
+    consume(TokenType::RBrace, "Expected '}' to close state machine definition");
+    return std::make_unique<StateMachineDef>(name, std::move(states), std::move(terminal_states), std::move(transitions), loc);
 }
 
 std::unique_ptr<TraitDef> Parser::parse_trait_definition() {
@@ -791,6 +836,19 @@ std::unique_ptr<Expression> Parser::parse_primary() {
         if (check(TokenType::ColonColon) && cursor_ + 1 < tokens_.size() && tokens_[cursor_ + 1].type == TokenType::Identifier) {
             advance(); // consume '::'
             const Token& member_tok = consume(TokenType::Identifier, "Expected identifier after '::'");
+            if (known_state_machines_.count(name)) {
+                if (match(TokenType::LParen)) {
+                    std::vector<std::unique_ptr<Expression>> args;
+                    if (!check(TokenType::RParen)) {
+                        do {
+                            args.push_back(parse_expression());
+                        } while (match(TokenType::Comma));
+                    }
+                    consume(TokenType::RParen, "Expected ')' after call arguments");
+                    return std::make_unique<CallExpr>(name + "::" + member_tok.text, std::move(args), loc);
+                }
+                return std::make_unique<EnumVariantExpr>(name, member_tok.text, nullptr, loc);
+            }
             if (known_enums_.count(name)) {
                 std::unique_ptr<Expression> payload = nullptr;
                 if (match(TokenType::LParen)) {

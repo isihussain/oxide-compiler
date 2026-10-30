@@ -1,5 +1,6 @@
 #include "codegen_c.hpp"
 #include <iomanip>
+#include <map>
 
 namespace oxide {
 
@@ -61,7 +62,9 @@ std::string CCodeGenerator::generate() {
     }
     emit_struct_declarations();
     emit_enum_declarations();
+    emit_state_machine_declarations();
     emit_enum_constructors();
+    emit_state_machine_methods();
     emit_forward_declarations();
 
     for (const auto& fn : program_.functions) {
@@ -403,6 +406,32 @@ void CCodeGenerator::emit_enum_declarations() {
     }
 }
 
+void CCodeGenerator::emit_state_machine_declarations() {
+    for (const auto& sm : program_.state_machines) {
+        // Tag enum
+        line("typedef enum {");
+        indent_level_++;
+        int tag = 0;
+        for (const auto& s : sm->states) {
+            line(sm->name + "_Tag_" + s + " = " + std::to_string(tag++) + ",");
+        }
+        for (const auto& s : sm->terminal_states) {
+            line(sm->name + "_Tag_" + s + " = " + std::to_string(tag++) + ",");
+        }
+        indent_level_--;
+        line("} " + sm->name + "_Tag;");
+        line();
+
+        // Tagged struct
+        line("typedef struct {");
+        indent_level_++;
+        line("int tag;");
+        indent_level_--;
+        line("} " + sm->name + ";");
+        line();
+    }
+}
+
 void CCodeGenerator::emit_enum_constructors() {
     for (const auto& e : program_.enums) {
         for (const auto& v : e->variants) {
@@ -427,6 +456,77 @@ void CCodeGenerator::emit_enum_constructors() {
                 line();
             }
         }
+    }
+}
+
+void CCodeGenerator::emit_state_machine_methods() {
+    for (const auto& sm : program_.state_machines) {
+        // Constructors
+        for (const auto& s : sm->states) {
+            line("static inline " + sm->name + " " + sm->name + "_" + s + "(void) {");
+            indent_level_++;
+            line(sm->name + " _res;");
+            line("_res.tag = " + sm->name + "_Tag_" + s + ";");
+            line("return _res;");
+            indent_level_--;
+            line("}");
+            line();
+        }
+        for (const auto& s : sm->terminal_states) {
+            line("static inline " + sm->name + " " + sm->name + "_" + s + "(void) {");
+            indent_level_++;
+            line(sm->name + " _res;");
+            line("_res.tag = " + sm->name + "_Tag_" + s + ";");
+            line("return _res;");
+            indent_level_--;
+            line("}");
+            line();
+        }
+
+        // can_transition
+        line("static inline bool " + sm->name + "__can_transition(" + sm->name + " from, " + sm->name + " to) {");
+        indent_level_++;
+        line("switch (from.tag) {");
+        indent_level_++;
+        std::map<std::string, std::vector<std::string>> trans_map;
+        for (const auto& t : sm->transitions) {
+            trans_map[t.from_state].push_back(t.to_state);
+        }
+        for (const auto& [from_st, to_list] : trans_map) {
+            line("case " + sm->name + "_Tag_" + from_st + ":");
+            indent_level_++;
+            std::string cond = "";
+            for (size_t i = 0; i < to_list.size(); ++i) {
+                if (i > 0) cond += " || ";
+                cond += "to.tag == " + sm->name + "_Tag_" + to_list[i];
+            }
+            line("if (" + cond + ") return true;");
+            line("return false;");
+            indent_level_--;
+        }
+        line("default:");
+        indent_level_++;
+        line("return false;");
+        indent_level_--;
+        indent_level_--;
+        line("}");
+        indent_level_--;
+        line("}");
+        line();
+
+        // transition
+        line("static inline " + sm->name + " " + sm->name + "__transition(" + sm->name + " from, " + sm->name + " to) {");
+        indent_level_++;
+        line("if (!" + sm->name + "__can_transition(from, to)) {");
+        indent_level_++;
+        line("fprintf(stderr, \"[OXIDE STATE MACHINE] Illegal transition in " + sm->name + " from tag %d to tag %d\\n\", from.tag, to.tag);");
+        line("abort();");
+        indent_level_--;
+        line("}");
+        line("return to;");
+        indent_level_--;
+        line("}");
+        line();
     }
 }
 
@@ -723,6 +823,13 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
             out_ << ", ";
             emit_expression(*bin->right);
             out_ << ")";
+        } else if ((bin->op == BinaryOp::Equal || bin->op == BinaryOp::NotEqual) &&
+                   bin->left->evaluated_type.kind == BaseTypeKind::Named) {
+            out_ << "((";
+            emit_expression(*bin->left);
+            out_ << ").tag " << (bin->op == BinaryOp::Equal ? "== (" : "!= (");
+            emit_expression(*bin->right);
+            out_ << ").tag)";
         } else {
             out_ << "(";
             emit_expression(*bin->left);

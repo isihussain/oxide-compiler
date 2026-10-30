@@ -50,6 +50,17 @@ struct EnumSignature {
 };
 
 /**
+ * @brief Definition metadata for mission flight state machines.
+ */
+struct StateMachineSignature {
+    std::string name;
+    std::vector<std::string> states;
+    std::vector<std::string> terminal_states;
+    std::map<std::string, std::vector<std::string>> transitions;
+    SourceLocation location;
+};
+
+/**
  * @brief Abstract method declaration within a trait definition.
  */
 struct TraitMethodSignature {
@@ -108,6 +119,7 @@ private:
     void register_traits();
     void register_structs();
     void register_enums();
+    void register_state_machines();
     void register_functions();
     void register_impl_blocks();
     void check_function(Function& func);
@@ -130,6 +142,7 @@ private:
     std::map<std::pair<std::string, std::string>, MethodSignature> method_table_;
     std::map<std::string, StructSignature> struct_table_;
     std::map<std::string, EnumSignature> enum_table_;
+    std::map<std::string, StateMachineSignature> state_machine_table_;
     std::map<std::string, FunctionSignature> function_table_;
     std::vector<std::map<std::string, std::pair<Type, bool>>> scopes_; // name -> (Type, is_mut)
     std::optional<Type> current_function_return_type_;

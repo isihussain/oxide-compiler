@@ -28,7 +28,9 @@ private:
     void emit_aerospace_traps();
     void emit_struct_declarations();
     void emit_enum_declarations();
+    void emit_state_machine_declarations();
     void emit_enum_constructors();
+    void emit_state_machine_methods();
     void emit_forward_declarations();
     void emit_function(const Function& func);
     void emit_block(const BlockExpr& block, bool is_function_body, bool is_main = false);

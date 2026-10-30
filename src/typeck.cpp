@@ -1,5 +1,6 @@
 #include "typeck.hpp"
 #include <optional>
+#include <queue>
 #include <set>
 #include <sstream>
 
@@ -80,6 +81,137 @@ void TypeChecker::register_enums() {
             sig.variants[v.name] = EnumVariantSignature{v.name, v.payload_type, v.tag, v.location};
         }
         enum_table_[e->name] = std::move(sig);
+    }
+}
+
+void TypeChecker::register_state_machines() {
+    for (const auto& sm : program_.state_machines) {
+        if (enum_table_.find(sm->name) != enum_table_.end() ||
+            struct_table_.find(sm->name) != struct_table_.end() ||
+            state_machine_table_.find(sm->name) != state_machine_table_.end()) {
+            emit_error(sm->location, "duplicate type definition: '" + sm->name + "'");
+            continue;
+        }
+
+        std::set<std::string> all_states;
+        std::set<std::string> normal_states;
+        std::set<std::string> terminal_states;
+
+        for (const auto& s : sm->states) {
+            if (all_states.count(s)) {
+                emit_error(sm->location, "duplicate state '" + s + "' in state_machine '" + sm->name + "'");
+            }
+            all_states.insert(s);
+            normal_states.insert(s);
+        }
+
+        for (const auto& s : sm->terminal_states) {
+            if (all_states.count(s)) {
+                emit_error(sm->location, "duplicate state '" + s + "' in state_machine '" + sm->name + "'");
+            }
+            all_states.insert(s);
+            terminal_states.insert(s);
+        }
+
+        if (terminal_states.empty()) {
+            emit_error(sm->location, "state_machine '" + sm->name + "' must declare at least one terminal state");
+        }
+
+        std::map<std::string, std::vector<std::string>> adj;
+        for (const auto& t : sm->transitions) {
+            if (!all_states.count(t.from_state)) {
+                emit_error(t.location, "unknown state '" + t.from_state + "' in transition for state_machine '" + sm->name + "'");
+                continue;
+            }
+            if (!all_states.count(t.to_state)) {
+                emit_error(t.location, "unknown state '" + t.to_state + "' in transition for state_machine '" + sm->name + "'");
+                continue;
+            }
+            if (terminal_states.count(t.from_state)) {
+                emit_error(t.location, "terminal state '" + t.from_state + "' cannot have outgoing transitions in state_machine '" + sm->name + "'");
+                continue;
+            }
+            adj[t.from_state].push_back(t.to_state);
+        }
+
+        // Deadlock detection:
+        // 1. Every non-terminal state must have outgoing transitions.
+        for (const auto& s : normal_states) {
+            if (adj.find(s) == adj.end() || adj[s].empty()) {
+                emit_error(sm->location, "deadlock detected in state_machine '" + sm->name + "': non-terminal state '" + s + "' has no outgoing transitions");
+            }
+        }
+
+        // 2. Deadlock trap / abort reachability: Every non-terminal state must be able to reach at least one terminal state.
+        for (const auto& s : normal_states) {
+            std::set<std::string> visited;
+            std::queue<std::string> q;
+            q.push(s);
+            visited.insert(s);
+            bool reaches_terminal = false;
+            while (!q.empty()) {
+                std::string cur = q.front();
+                q.pop();
+                if (terminal_states.count(cur)) {
+                    reaches_terminal = true;
+                    break;
+                }
+                auto it = adj.find(cur);
+                if (it != adj.end()) {
+                    for (const auto& nxt : it->second) {
+                        if (!visited.count(nxt)) {
+                            visited.insert(nxt);
+                            q.push(nxt);
+                        }
+                    }
+                }
+            }
+            if (!reaches_terminal && !terminal_states.empty()) {
+                emit_error(sm->location, "deadlock trap detected in state_machine '" + sm->name + "': state '" + s + "' cannot reach any terminal state");
+            }
+        }
+
+        // Register variants in enum_table_ so match expressions and variant expressions work
+        EnumSignature enum_sig;
+        enum_sig.name = sm->name;
+        enum_sig.location = sm->location;
+        int tag = 0;
+        for (const auto& s : sm->states) {
+            enum_sig.variants[s] = EnumVariantSignature{s, std::nullopt, tag++, sm->location};
+        }
+        for (const auto& s : sm->terminal_states) {
+            enum_sig.variants[s] = EnumVariantSignature{s, std::nullopt, tag++, sm->location};
+        }
+        enum_table_[sm->name] = std::move(enum_sig);
+
+        // Register transition functions in function_table_
+        Type sm_type{BaseTypeKind::Named, sm->name, false, false};
+        Type bool_type{BaseTypeKind::Bool, false, false};
+
+        function_table_[sm->name + "::can_transition"] = FunctionSignature{
+            sm->name + "::can_transition",
+            {},
+            {sm_type, sm_type},
+            bool_type,
+            sm->location
+        };
+
+        function_table_[sm->name + "::transition"] = FunctionSignature{
+            sm->name + "::transition",
+            {},
+            {sm_type, sm_type},
+            sm_type,
+            sm->location
+        };
+
+        // Store state machine signature
+        StateMachineSignature sm_sig;
+        sm_sig.name = sm->name;
+        sm_sig.states = sm->states;
+        sm_sig.terminal_states = sm->terminal_states;
+        sm_sig.transitions = std::move(adj);
+        sm_sig.location = sm->location;
+        state_machine_table_[sm->name] = std::move(sm_sig);
     }
 }
 
@@ -270,6 +402,7 @@ bool TypeChecker::check() {
     register_traits();
     register_structs();
     register_enums();
+    register_state_machines();
     register_functions();
     register_impl_blocks();
     for (auto& fn : program_.functions) {

@@ -529,10 +529,35 @@ struct ImplBlock : public ASTNode {
     void dump(int indent = 0) const;
 };
 
+struct StateMachineTransition {
+    std::string from_state;
+    std::string to_state;
+    SourceLocation location;
+};
+
+struct StateMachineDef : public ASTNode {
+    std::string name;
+    std::vector<std::string> states;
+    std::vector<std::string> terminal_states;
+    std::vector<StateMachineTransition> transitions;
+
+    StateMachineDef(std::string name,
+                    std::vector<std::string> states,
+                    std::vector<std::string> terminal_states,
+                    std::vector<StateMachineTransition> transitions,
+                    SourceLocation loc)
+        : name(std::move(name)), states(std::move(states)),
+          terminal_states(std::move(terminal_states)),
+          transitions(std::move(transitions)) { location = loc; }
+
+    void dump(int indent = 0) const;
+};
+
 struct Program : public ASTNode {
     std::vector<std::unique_ptr<ExternBlock>> extern_blocks;
     std::vector<std::unique_ptr<StructDef>> structs;
     std::vector<std::unique_ptr<EnumDef>> enums;
+    std::vector<std::unique_ptr<StateMachineDef>> state_machines;
     std::vector<std::unique_ptr<TraitDef>> traits;
     std::vector<std::unique_ptr<ImplBlock>> impl_blocks;
     std::vector<std::unique_ptr<Function>> functions;
