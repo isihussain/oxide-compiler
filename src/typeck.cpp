@@ -207,6 +207,15 @@ void TypeChecker::register_structs() {
         {"rcs_assist_engaged", Type{BaseTypeKind::Bool, false, false}},
         {"active_fin_gain_percent", Type{BaseTypeKind::I32, false, false}}
     }, {"total_surfaces", "max_tracking_error_cdeg", "stall_frame_limit", "jammed_surface_id", "stall_count", "surface_isolated", "rcs_assist_engaged", "active_fin_gain_percent"}, SourceLocation{0, 0}};
+    struct_table_["TouchdownInterlock"] = StructSignature{"TouchdownInterlock", {}, {
+        {"max_touchdown_alt_cm", Type{BaseTypeKind::I32, false, false}},
+        {"min_wow_force_n", Type{BaseTypeKind::I32, false, false}},
+        {"radar_alt_cm", Type{BaseTypeKind::I32, false, false}},
+        {"wow_force_n", Type{BaseTypeKind::I32, false, false}},
+        {"touchdown_confirmed", Type{BaseTypeKind::Bool, false, false}},
+        {"engine_cutoff_commanded", Type{BaseTypeKind::Bool, false, false}},
+        {"premature_shutdown_blocked", Type{BaseTypeKind::Bool, false, false}}
+    }, {"max_touchdown_alt_cm", "min_wow_force_n", "radar_alt_cm", "wow_force_n", "touchdown_confirmed", "engine_cutoff_commanded", "premature_shutdown_blocked"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1726,6 +1735,31 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "ControlSurfaceGuard", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "TouchdownInterlock::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "TouchdownInterlock::new takes exactly 2 arguments (max_touchdown_alt_cm, min_wow_force_n)");
+            } else {
+                for (size_t i = 0; i < 2; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "TouchdownInterlock parameters must be 'i32'");
+                    }
+                }
+                int64_t alt_v = 0, force_v = 0;
+                bool b_alt = extract_const_int(call->arguments[0].get(), alt_v);
+                bool b_force = extract_const_int(call->arguments[1].get(), force_v);
+
+                if (b_alt && alt_v <= 0) {
+                    emit_error(call->location, "invalid max_touchdown_alt_cm (" + std::to_string(alt_v) + "): must be positive");
+                }
+                if (b_force && force_v <= 0) {
+                    emit_error(call->location, "invalid min_wow_force_n (" + std::to_string(force_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "TouchdownInterlock", false, false};
             return call->evaluated_type;
         }
 
@@ -3518,6 +3552,79 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "ControlSurfaceGuard::reset_fault takes 0 arguments");
                 }
                 mc->resolved_callee = "ControlSurfaceGuard__reset_fault";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "TouchdownInterlock") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "TouchdownInterlock::update takes exactly 2 arguments (radar_alt_cm, wow_force_n)");
+                } else {
+                    for (size_t i = 0; i < 2; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "TouchdownInterlock::update parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "TouchdownInterlock__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_touchdown_confirmed") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TouchdownInterlock::is_touchdown_confirmed takes 0 arguments");
+                }
+                mc->resolved_callee = "TouchdownInterlock__is_touchdown_confirmed";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_cutoff_commanded") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TouchdownInterlock::is_cutoff_commanded takes 0 arguments");
+                }
+                mc->resolved_callee = "TouchdownInterlock__is_cutoff_commanded";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "premature_shutdown_blocked") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TouchdownInterlock::premature_shutdown_blocked takes 0 arguments");
+                }
+                mc->resolved_callee = "TouchdownInterlock__premature_shutdown_blocked";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "radar_alt_cm") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TouchdownInterlock::radar_alt_cm takes 0 arguments");
+                }
+                mc->resolved_callee = "TouchdownInterlock__radar_alt_cm";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "wow_force_n") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TouchdownInterlock::wow_force_n takes 0 arguments");
+                }
+                mc->resolved_callee = "TouchdownInterlock__wow_force_n";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TouchdownInterlock::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "TouchdownInterlock__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;

@@ -57,6 +57,7 @@ def run():
         ("examples/39_inertial_disparity_guard.rs", 42, ["--profile=aerospace"]),
         ("examples/40_engine_out_compensation.rs", 42, ["--profile=aerospace"]),
         ("examples/41_control_surface_stall.rs", 42, ["--profile=aerospace"]),
+        ("examples/42_touchdown_radar_wow_gate.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -193,6 +194,9 @@ def run():
         ("tests/ui/fail_surface_count_below_two.rs", "invalid control surface count (1): must be at least 2", []),
         ("tests/ui/fail_surface_error_negative.rs", "invalid max_tracking_error_cdeg (-100): must be positive", []),
         ("tests/ui/fail_surface_immutable_update.rs", "cannot borrow immutable local variable 'guard' as mutable in method call", []),
+        ("tests/ui/fail_touchdown_alt_negative.rs", "invalid max_touchdown_alt_cm (-50): must be positive", []),
+        ("tests/ui/fail_touchdown_force_zero.rs", "invalid min_wow_force_n (0): must be positive", []),
+        ("tests/ui/fail_touchdown_immutable_update.rs", "cannot borrow immutable local variable 'gate' as mutable in method call", []),
     ]
 
     for item in negative_tests:
