@@ -7,7 +7,25 @@ on:
     branches: [main]
 
 jobs:
+  format-check:
+    name: Code Formatting (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Run clang-format check
+        run: |
+          echo "Verifying C++20 code formatting across src/ and include/..."
+          find src include -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run
+
   test:
+    name: Build & Conformance Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
