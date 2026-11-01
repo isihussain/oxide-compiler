@@ -185,6 +185,18 @@ void TypeChecker::register_structs() {
         {"servo_runaway", Type{BaseTypeKind::Bool, false, false}},
         {"channel_swapped", Type{BaseTypeKind::Bool, false, false}}
     }, {"max_disparity_cdeg", "max_servo_rate", "disparity_limit", "primary_channel", "primary_angle", "backup_angle", "selected_angle", "disparity_count", "servo_runaway", "channel_swapped"}, SourceLocation{0, 0}};
+    struct_table_["EngineOutCompensator"] = StructSignature{"EngineOutCompensator", {}, {
+        {"total_engines", Type{BaseTypeKind::I32, false, false}},
+        {"nominal_thrust_kn", Type{BaseTypeKind::I32, false, false}},
+        {"target_delta_v", Type{BaseTypeKind::I32, false, false}},
+        {"base_burn_duration_s", Type{BaseTypeKind::I32, false, false}},
+        {"active_engines", Type{BaseTypeKind::I32, false, false}},
+        {"failed_engine_id", Type{BaseTypeKind::I32, false, false}},
+        {"trim_gimbal_cdeg", Type{BaseTypeKind::I32, false, false}},
+        {"reshaped_burn_duration_s", Type{BaseTypeKind::I32, false, false}},
+        {"engine_out_time", Type{BaseTypeKind::I32, false, false}},
+        {"burn_completed", Type{BaseTypeKind::Bool, false, false}}
+    }, {"total_engines", "nominal_thrust_kn", "target_delta_v", "base_burn_duration_s", "active_engines", "failed_engine_id", "trim_gimbal_cdeg", "reshaped_burn_duration_s", "engine_out_time", "burn_completed"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1642,6 +1654,39 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "InertialDisparityGuard", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "EngineOutCompensator::new") {
+            if (call->arguments.size() != 4) {
+                emit_error(call->location, "EngineOutCompensator::new takes exactly 4 arguments (total_engines, nominal_thrust_kn, target_delta_v, base_burn_duration_s)");
+            } else {
+                for (size_t i = 0; i < 4; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "EngineOutCompensator parameters must be 'i32'");
+                    }
+                }
+                int64_t eng_v = 0, thr_v = 0, dv_v = 0, dur_v = 0;
+                bool b_eng = extract_const_int(call->arguments[0].get(), eng_v);
+                bool b_thr = extract_const_int(call->arguments[1].get(), thr_v);
+                bool b_dv = extract_const_int(call->arguments[2].get(), dv_v);
+                bool b_dur = extract_const_int(call->arguments[3].get(), dur_v);
+
+                if (b_eng && eng_v < 2) {
+                    emit_error(call->location, "invalid cluster total_engines (" + std::to_string(eng_v) + "): must be at least 2");
+                }
+                if (b_thr && thr_v <= 0) {
+                    emit_error(call->location, "invalid cluster nominal_thrust_kn (" + std::to_string(thr_v) + "): must be positive");
+                }
+                if (b_dv && dv_v <= 0) {
+                    emit_error(call->location, "invalid cluster target_delta_v (" + std::to_string(dv_v) + "): must be positive");
+                }
+                if (b_dur && dur_v <= 0) {
+                    emit_error(call->location, "invalid cluster base_burn_duration_s (" + std::to_string(dur_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "EngineOutCompensator", false, false};
             return call->evaluated_type;
         }
 
@@ -3289,6 +3334,79 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
                 mc->resolved_callee = "InertialDisparityGuard__reset_fault";
                 mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "EngineOutCompensator") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "EngineOutCompensator::update takes exactly 2 arguments (engine_mask, current_burn_elapsed_s)");
+                } else {
+                    for (size_t i = 0; i < 2; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "EngineOutCompensator::update parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "EngineOutCompensator__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "active_engines") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "EngineOutCompensator::active_engines takes 0 arguments");
+                }
+                mc->resolved_callee = "EngineOutCompensator__active_engines";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "failed_engine_id") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "EngineOutCompensator::failed_engine_id takes 0 arguments");
+                }
+                mc->resolved_callee = "EngineOutCompensator__failed_engine_id";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "trim_gimbal_cdeg") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "EngineOutCompensator::trim_gimbal_cdeg takes 0 arguments");
+                }
+                mc->resolved_callee = "EngineOutCompensator__trim_gimbal_cdeg";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reshaped_burn_duration") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "EngineOutCompensator::reshaped_burn_duration takes 0 arguments");
+                }
+                mc->resolved_callee = "EngineOutCompensator__reshaped_burn_duration";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_engine_out") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "EngineOutCompensator::is_engine_out takes 0 arguments");
+                }
+                mc->resolved_callee = "EngineOutCompensator__is_engine_out";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_burn_completed") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "EngineOutCompensator::is_burn_completed takes 0 arguments");
+                }
+                mc->resolved_callee = "EngineOutCompensator__is_burn_completed";
+                mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
             }
