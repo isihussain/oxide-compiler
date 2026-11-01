@@ -54,6 +54,7 @@ def run():
         ("examples/36_sensor_fdir_isolation.rs", 42, ["--profile=aerospace"]),
         ("examples/37_hold_down_interlock.rs", 42, ["--profile=aerospace"]),
         ("examples/38_turbopump_cavitation_monitor.rs", 42, ["--profile=aerospace"]),
+        ("examples/39_inertial_disparity_guard.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -181,6 +182,9 @@ def run():
         ("tests/ui/fail_turbopump_rpm_inverted.rs", "invalid turbopump RPM bounds: max_rpm (10000) must exceed min_rpm (25000)", []),
         ("tests/ui/fail_turbopump_delta_p_negative.rs", "invalid turbopump min_delta_p (-500): must be positive", []),
         ("tests/ui/fail_turbopump_immutable_update.rs", "cannot borrow immutable local variable 'tp' as mutable in method call", []),
+        ("tests/ui/fail_inertial_disparity_negative.rs", "invalid inertial max_disparity_cdeg (-100): must be positive", []),
+        ("tests/ui/fail_inertial_rate_zero.rs", "invalid inertial max_servo_rate (0): must be positive", []),
+        ("tests/ui/fail_inertial_immutable_update.rs", "cannot borrow immutable local variable 'guard' as mutable in method call", []),
     ]
 
     for item in negative_tests:
