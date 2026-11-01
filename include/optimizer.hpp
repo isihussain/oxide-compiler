@@ -12,9 +12,13 @@ namespace oxide {
  *     - Evaluates binary arithmetic operators (+, -, *, /) on IntegerLiteralExpr nodes.
  *     - Evaluates relational comparisons (==, !=, <, <=, >, >=) to BoolLiteralExpr nodes.
  *     - Evaluates unary operations (- for integers, ! for booleans).
+ *     - Evaluates algebraic identities (x + 0, x - 0, x * 1, x * 0, x / 1) and annihilators.
+ *     - Evaluates double negations (-(-x) -> x, !(!x) -> x).
  *  2. Dead Code Elimination (DCE):
  *     - Detects unconditional ReturnExpr statements in BlockExpr nodes and prunes all
  *       subsequent dead statements within the block.
+ *     - Prunes unreachable branches in IfExpr nodes when conditions evaluate to constants.
+ *     - Prunes unexecutable loop bodies in WhileExpr nodes when conditions evaluate to false.
  */
 class Optimizer {
 public:
