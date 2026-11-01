@@ -52,7 +52,7 @@ flowchart TD
 * **Lock-Free SPSC Ring Buffer (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Implements single-producer single-consumer circular telemetry buffers (`SpscRingBuffer`) without heap allocations or thread locks. Guarantees FIFO order with atomic acquire/release memory barriers and non-blocking backpressure under `--profile=aerospace`.
 * **Stage Mass & Propellant Depletion Verifier (`include/typeck.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Tracks rocket stage mass invariants (`StageMass`) during ascent and landing burns. Enforces non-negative propellant mass, prevents vehicle mass from breaching structural dry mass ($m_{\text{total}} \ge m_{\text{dry}}$), and emits runtime abort traps if burns exceed remaining propellant.
 * **Bit-Packed Telemetry & CRC Engine (`include/ast.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Supports zero-padding packed structures (`#[repr(packed)]`) and binary frame serialization (`TelemetryPacket`) for RF space links. Automatically computes and verifies IEEE 802.3 CRC-32 integrity checksums with immediate invariant assertion traps under `--profile=aerospace`.
-* **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations and dead code elimination following early returns.
+* **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations, algebraic identity simplifications ($x+0, x-0, x\times 1, x\times 0, x/1$), double negation elimination, dead code elimination following early returns, constant-bounded loop unrolling (trip count $\le 8$), dead loop pruning, and pure leaf function inline expansion.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
 ---
@@ -262,6 +262,12 @@ Results: 155/155 tests passed.
   - [x] Engine-out differential thrust vectoring and autonomous burn reshaping (LandSpace Zhuque-2 maiden flight methalox vernier shutdown mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Aerodynamic control surface encoder stall detection and authority re-allocation (i-Space Hyperbola-1 grid fin actuator freeze mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] VTVL landing burn altimeter and weight-on-wheels dual-condition touchdown gate (Deep Blue Aerospace Nebula-1 5km VTVL premature engine shutdown mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
+- [x] **Milestone 10: Advanced Optimization & Inlining**
+  - [x] Compile-time algebraic identities and double negation folding
+  - [x] Static dead-code and unreachable branch pruning
+  - [x] Constant-bounded loop unrolling over RangeExpr bounds (trip count <= 8)
+  - [x] Dead loop elimination on inverted bounds (start >= end)
+  - [x] Pure leaf function inline expansion with direct parameter substitution
 
 ---
 
