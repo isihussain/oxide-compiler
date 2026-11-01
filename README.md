@@ -8,29 +8,20 @@ Oxide provides an alternative implementation of the Rust language frontend, type
 
 ## Architecture Pipeline
 
-```
-Rust Source (.rs)
-      │
-      ▼
- [ Lexer ] ────────────► Token Stream (Keywords, Identifiers, Operators)
-      │
-      ▼
- [ Parser ] ───────────► Abstract Syntax Tree (AST)
-      │
-      ▼
- [ Type Checker ] ─────► Annotated AST (Scope resolution, Type inference)
-      │
-      ▼
- [ Monomorphizer ] ────► Concrete Specialized AST (Generics lowering)
-      │
-      ▼
- [ Borrow Checker ] ───► Ownership & Mutability Validation
-      │
-      ▼
- [ Optimizer ] ────────► Constant Folding & Dead Code Elimination
-      │
-      ▼
- [ C99 Codegen ] ──────► Emitted C99 Source / Native Executable
+```mermaid
+flowchart TD
+    SRC["Rust Source (.rs)"] --> LEX["Lexer (lexer.cpp)"]
+    LEX -->|"Token Stream"| PARSER["Recursive Descent Parser (parser.cpp)"]
+    PARSER -->|"Abstract Syntax Tree (AST)"| TYPECK["Type Checker & Scopes (typeck.cpp)"]
+    TYPECK -->|"Annotated AST"| MONO["Monomorphizer (monomorphize.cpp)"]
+    MONO -->|"Specialized AST"| CFG["Control Flow Graph (cfg.cpp)"]
+    CFG -->|"Basic Blocks"| BORROW["Borrow Checker & NLL (borrowck.cpp)"]
+    BORROW --> AERO{"Profile Mode"}
+    AERO -->|"--profile=aerospace"| VERIFY["Aerospace Verifier (NASA/JPL Safety Rules)"]
+    AERO -->|"Default"| OPT["Optimizer & Constant Folding"]
+    VERIFY --> OPT
+    OPT --> CODEGEN["C99 Code Generator (codegen_c.cpp)"]
+    CODEGEN --> BIN["Native Binary / C99 Source"]
 ```
 
 ### Compiler Modules
