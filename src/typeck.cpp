@@ -153,6 +153,15 @@ void TypeChecker::register_structs() {
         {"last_valid_sample", Type{BaseTypeKind::I32, false, false}},
         {"total_anomalies", Type{BaseTypeKind::I32, false, false}}
     }, {"min_val", "max_val", "degrade_threshold", "isolate_threshold", "recovery_threshold", "state", "anomaly_count", "healthy_count", "last_valid_sample", "total_anomalies"}, SourceLocation{0, 0}};
+    struct_table_["HoldDownInterlock"] = StructSignature{"HoldDownInterlock", {}, {
+        {"mode", Type{BaseTypeKind::I32, false, false}},
+        {"rated_clamp_strain", Type{BaseTypeKind::I32, false, false}},
+        {"clamp_strain", Type{BaseTypeKind::I32, false, false}},
+        {"accel_z", Type{BaseTypeKind::I32, false, false}},
+        {"umbilical_connected", Type{BaseTypeKind::Bool, false, false}},
+        {"thrust_terminated", Type{BaseTypeKind::Bool, false, false}},
+        {"abort_reason", Type{BaseTypeKind::I32, false, false}}
+    }, {"mode", "rated_clamp_strain", "clamp_strain", "accel_z", "umbilical_connected", "thrust_terminated", "abort_reason"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1521,6 +1530,32 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "SensorFDIR", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "HoldDownInterlock::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "HoldDownInterlock::new takes exactly 2 arguments (mode, rated_clamp_strain)");
+            } else {
+                Type t0 = check_expression(*call->arguments[0]);
+                Type t1 = check_expression(*call->arguments[1]);
+                if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                    emit_error(call->location, "HoldDownInterlock parameters must be 'i32'");
+                }
+                int64_t mode_val = 0;
+                int64_t strain_val = 0;
+                bool has_mode = extract_const_int(call->arguments[0].get(), mode_val);
+                bool has_strain = extract_const_int(call->arguments[1].get(), strain_val);
+                if (has_mode && mode_val != 0 && mode_val != 1) {
+                    emit_error(call->location, "invalid hold down mode (" + std::to_string(mode_val) +
+                               "): expected 0 (StaticFire) or 1 (FlightLaunch)");
+                }
+                if (has_strain && strain_val <= 0) {
+                    emit_error(call->location, "invalid rated clamp strain (" + std::to_string(strain_val) +
+                               "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "HoldDownInterlock", false, false};
             return call->evaluated_type;
         }
 
@@ -2929,6 +2964,82 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "SensorFDIR__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "HoldDownInterlock") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "HoldDownInterlock::update takes exactly 3 arguments (clamp_strain, accel_z, umbilical_connected)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "HoldDownInterlock::update strain and accel must be 'i32'");
+                    }
+                    if (t2.kind != BaseTypeKind::Bool) {
+                        emit_error(mc->arguments[2]->location, "HoldDownInterlock::update umbilical_connected must be 'bool'");
+                    }
+                }
+                mc->resolved_callee = "HoldDownInterlock__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_thrust_terminated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "HoldDownInterlock::is_thrust_terminated takes 0 arguments");
+                }
+                mc->resolved_callee = "HoldDownInterlock__is_thrust_terminated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "abort_reason") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "HoldDownInterlock::abort_reason takes 0 arguments");
+                }
+                mc->resolved_callee = "HoldDownInterlock__abort_reason";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "clamp_strain") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "HoldDownInterlock::clamp_strain takes 0 arguments");
+                }
+                mc->resolved_callee = "HoldDownInterlock__clamp_strain";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "accel_z") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "HoldDownInterlock::accel_z takes 0 arguments");
+                }
+                mc->resolved_callee = "HoldDownInterlock__accel_z";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_nominal") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "HoldDownInterlock::is_nominal takes 0 arguments");
+                }
+                mc->resolved_callee = "HoldDownInterlock__is_nominal";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset_abort") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "HoldDownInterlock::reset_abort takes 0 arguments");
+                }
+                mc->resolved_callee = "HoldDownInterlock__reset_abort";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
             }
         }

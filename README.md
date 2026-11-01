@@ -197,7 +197,7 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_mmio_read_writeonly.rs (correctly rejected)
 [PASS] fail_mmio_missing_barrier.rs (correctly rejected)
 ==================================================
-Results: 131/131 tests passed.
+Results: 135/135 tests passed.
 ```
 
 ---
@@ -255,6 +255,13 @@ Results: 131/131 tests passed.
   - [x] Static-queued publish/subscribe flight software bus (NASA cFE Software Bus)
   - [x] Watchdog heartbeat strobe monitor and task deadline failover (NASA JPL F Prime)
   - [x] Hierarchical sensor fault detection, isolation, and recovery (FDIR)
+- [ ] **Milestone 9: Launch Vehicle Incident Mitigations & Flight Safeguards**
+  - [x] Test-stand hold-down clamp strain sensor interlock and inadvertent liftoff abort trigger (Space Pioneer Tianlong-3 Gongyi incident mitigation; RT-Thread inspired)
+  - [ ] Turbopump shaft speed and cavitation differential pressure surveillance (Long March 5 / YF-77 liquid hydrogen/oxygen turbopump failure mitigation)
+  - [ ] Cross-channel inertial measurement unit disparity and servo runaway guard (Long March 3B / Intelsat 708 incident mitigation)
+  - [ ] Engine-out differential thrust vectoring and autonomous burn reshaping (LandSpace Zhuque-2 maiden flight methalox vernier shutdown mitigation)
+  - [ ] Aerodynamic control surface encoder stall detection and authority re-allocation (i-Space Hyperbola-1 grid fin actuator freeze mitigation)
+  - [ ] VTVL landing burn altimeter and weight-on-wheels dual-condition touchdown gate (Deep Blue Aerospace Nebula-1 5km VTVL premature engine shutdown mitigation)
 
 ---
 

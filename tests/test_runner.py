@@ -52,6 +52,7 @@ def run():
         ("examples/34_software_bus_pubsub.rs", 42, ["--profile=aerospace"]),
         ("examples/35_watchdog_task_strobe.rs", 42, ["--profile=aerospace"]),
         ("examples/36_sensor_fdir_isolation.rs", 42, ["--profile=aerospace"]),
+        ("examples/37_hold_down_interlock.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -173,6 +174,9 @@ def run():
         ("tests/ui/fail_fdir_threshold_inverted.rs", "invalid sensor FDIR thresholds: isolate_threshold (3) must exceed degrade_threshold (6)", []),
         ("tests/ui/fail_fdir_degrade_zero.rs", "invalid sensor FDIR degrade_threshold (0): must be positive", []),
         ("tests/ui/fail_fdir_immutable_update.rs", "cannot borrow immutable local variable 'fdir' as mutable in method call", []),
+        ("tests/ui/fail_hold_down_mode_invalid.rs", "invalid hold down mode (2): expected 0 (StaticFire) or 1 (FlightLaunch)", []),
+        ("tests/ui/fail_hold_down_strain_negative.rs", "invalid rated clamp strain (-500): must be positive", []),
+        ("tests/ui/fail_hold_down_immutable_update.rs", "cannot borrow immutable local variable 'interlock' as mutable in method call", []),
     ]
 
     for item in negative_tests:
