@@ -162,6 +162,17 @@ void TypeChecker::register_structs() {
         {"thrust_terminated", Type{BaseTypeKind::Bool, false, false}},
         {"abort_reason", Type{BaseTypeKind::I32, false, false}}
     }, {"mode", "rated_clamp_strain", "clamp_strain", "accel_z", "umbilical_connected", "thrust_terminated", "abort_reason"}, SourceLocation{0, 0}};
+    struct_table_["TurbopumpMonitor"] = StructSignature{"TurbopumpMonitor", {}, {
+        {"min_rpm", Type{BaseTypeKind::I32, false, false}},
+        {"max_rpm", Type{BaseTypeKind::I32, false, false}},
+        {"min_delta_p", Type{BaseTypeKind::I32, false, false}},
+        {"cavitation_limit", Type{BaseTypeKind::I32, false, false}},
+        {"shaft_rpm", Type{BaseTypeKind::I32, false, false}},
+        {"delta_p", Type{BaseTypeKind::I32, false, false}},
+        {"cavitation_count", Type{BaseTypeKind::I32, false, false}},
+        {"state", Type{BaseTypeKind::I32, false, false}},
+        {"trip_code", Type{BaseTypeKind::I32, false, false}}
+    }, {"min_rpm", "max_rpm", "min_delta_p", "cavitation_limit", "shaft_rpm", "delta_p", "cavitation_count", "state", "trip_code"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1556,6 +1567,40 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "HoldDownInterlock", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "TurbopumpMonitor::new") {
+            if (call->arguments.size() != 4) {
+                emit_error(call->location, "TurbopumpMonitor::new takes exactly 4 arguments (min_rpm, max_rpm, min_delta_p, cavitation_limit)");
+            } else {
+                for (size_t i = 0; i < 4; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "TurbopumpMonitor parameters must be 'i32'");
+                    }
+                }
+                int64_t min_rpm_v = 0, max_rpm_v = 0, min_dp_v = 0, cav_lim_v = 0;
+                bool b_min = extract_const_int(call->arguments[0].get(), min_rpm_v);
+                bool b_max = extract_const_int(call->arguments[1].get(), max_rpm_v);
+                bool b_dp = extract_const_int(call->arguments[2].get(), min_dp_v);
+                bool b_lim = extract_const_int(call->arguments[3].get(), cav_lim_v);
+
+                if (b_min && min_rpm_v <= 0) {
+                    emit_error(call->location, "invalid turbopump min_rpm (" + std::to_string(min_rpm_v) + "): must be positive");
+                }
+                if (b_min && b_max && max_rpm_v <= min_rpm_v) {
+                    emit_error(call->location, "invalid turbopump RPM bounds: max_rpm (" + std::to_string(max_rpm_v) +
+                               ") must exceed min_rpm (" + std::to_string(min_rpm_v) + ")");
+                }
+                if (b_dp && min_dp_v <= 0) {
+                    emit_error(call->location, "invalid turbopump min_delta_p (" + std::to_string(min_dp_v) + "): must be positive");
+                }
+                if (b_lim && cav_lim_v <= 0) {
+                    emit_error(call->location, "invalid turbopump cavitation_limit (" + std::to_string(cav_lim_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "TurbopumpMonitor", false, false};
             return call->evaluated_type;
         }
 
@@ -3040,6 +3085,97 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "HoldDownInterlock__reset_abort";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "TurbopumpMonitor") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "TurbopumpMonitor::update takes exactly 3 arguments (shaft_rpm, inlet_p, discharge_p)");
+                } else {
+                    for (size_t i = 0; i < 3; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "TurbopumpMonitor::update parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "TurbopumpMonitor__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "state") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::state takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__state";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_nominal") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::is_nominal takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__is_nominal";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_warning") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::is_warning takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__is_warning";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_shutdown") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::is_shutdown takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__is_shutdown";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "trip_code") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::trip_code takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__trip_code";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "shaft_rpm") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::shaft_rpm takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__shaft_rpm";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "delta_p") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::delta_p takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__delta_p";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "cavitation_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::cavitation_count takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__cavitation_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;
             }
         }
