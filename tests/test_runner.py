@@ -56,6 +56,7 @@ def run():
         ("examples/38_turbopump_cavitation_monitor.rs", 42, ["--profile=aerospace"]),
         ("examples/39_inertial_disparity_guard.rs", 42, ["--profile=aerospace"]),
         ("examples/40_engine_out_compensation.rs", 42, ["--profile=aerospace"]),
+        ("examples/41_control_surface_stall.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -189,6 +190,9 @@ def run():
         ("tests/ui/fail_compensator_engines_below_two.rs", "invalid cluster total_engines (1): must be at least 2", []),
         ("tests/ui/fail_compensator_delta_v_negative.rs", "invalid cluster target_delta_v (-500): must be positive", []),
         ("tests/ui/fail_compensator_immutable_update.rs", "cannot borrow immutable local variable 'comp' as mutable in method call", []),
+        ("tests/ui/fail_surface_count_below_two.rs", "invalid control surface count (1): must be at least 2", []),
+        ("tests/ui/fail_surface_error_negative.rs", "invalid max_tracking_error_cdeg (-100): must be positive", []),
+        ("tests/ui/fail_surface_immutable_update.rs", "cannot borrow immutable local variable 'guard' as mutable in method call", []),
     ]
 
     for item in negative_tests:

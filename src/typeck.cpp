@@ -197,6 +197,16 @@ void TypeChecker::register_structs() {
         {"engine_out_time", Type{BaseTypeKind::I32, false, false}},
         {"burn_completed", Type{BaseTypeKind::Bool, false, false}}
     }, {"total_engines", "nominal_thrust_kn", "target_delta_v", "base_burn_duration_s", "active_engines", "failed_engine_id", "trim_gimbal_cdeg", "reshaped_burn_duration_s", "engine_out_time", "burn_completed"}, SourceLocation{0, 0}};
+    struct_table_["ControlSurfaceGuard"] = StructSignature{"ControlSurfaceGuard", {}, {
+        {"total_surfaces", Type{BaseTypeKind::I32, false, false}},
+        {"max_tracking_error_cdeg", Type{BaseTypeKind::I32, false, false}},
+        {"stall_frame_limit", Type{BaseTypeKind::I32, false, false}},
+        {"jammed_surface_id", Type{BaseTypeKind::I32, false, false}},
+        {"stall_count", Type{BaseTypeKind::I32, false, false}},
+        {"surface_isolated", Type{BaseTypeKind::Bool, false, false}},
+        {"rcs_assist_engaged", Type{BaseTypeKind::Bool, false, false}},
+        {"active_fin_gain_percent", Type{BaseTypeKind::I32, false, false}}
+    }, {"total_surfaces", "max_tracking_error_cdeg", "stall_frame_limit", "jammed_surface_id", "stall_count", "surface_isolated", "rcs_assist_engaged", "active_fin_gain_percent"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1687,6 +1697,35 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "EngineOutCompensator", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "ControlSurfaceGuard::new") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "ControlSurfaceGuard::new takes exactly 3 arguments (total_surfaces, max_tracking_error_cdeg, stall_frame_limit)");
+            } else {
+                for (size_t i = 0; i < 3; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "ControlSurfaceGuard parameters must be 'i32'");
+                    }
+                }
+                int64_t surf_v = 0, err_v = 0, lim_v = 0;
+                bool b_surf = extract_const_int(call->arguments[0].get(), surf_v);
+                bool b_err = extract_const_int(call->arguments[1].get(), err_v);
+                bool b_lim = extract_const_int(call->arguments[2].get(), lim_v);
+
+                if (b_surf && surf_v < 2) {
+                    emit_error(call->location, "invalid control surface count (" + std::to_string(surf_v) + "): must be at least 2");
+                }
+                if (b_err && err_v <= 0) {
+                    emit_error(call->location, "invalid max_tracking_error_cdeg (" + std::to_string(err_v) + "): must be positive");
+                }
+                if (b_lim && lim_v <= 0) {
+                    emit_error(call->location, "invalid stall_frame_limit (" + std::to_string(lim_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "ControlSurfaceGuard", false, false};
             return call->evaluated_type;
         }
 
@@ -3407,6 +3446,79 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
                 mc->resolved_callee = "EngineOutCompensator__is_burn_completed";
                 mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "ControlSurfaceGuard") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "ControlSurfaceGuard::update takes exactly 3 arguments (surface_id, commanded_angle_cdeg, measured_angle_cdeg)");
+                } else {
+                    for (size_t i = 0; i < 3; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "ControlSurfaceGuard::update parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_surface_isolated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ControlSurfaceGuard::is_surface_isolated takes 0 arguments");
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__is_surface_isolated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "jammed_surface_id") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ControlSurfaceGuard::jammed_surface_id takes 0 arguments");
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__jammed_surface_id";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "rcs_assist_engaged") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ControlSurfaceGuard::rcs_assist_engaged takes 0 arguments");
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__rcs_assist_engaged";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "active_fin_gain_percent") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ControlSurfaceGuard::active_fin_gain_percent takes 0 arguments");
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__active_fin_gain_percent";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "stall_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ControlSurfaceGuard::stall_count takes 0 arguments");
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__stall_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset_fault") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ControlSurfaceGuard::reset_fault takes 0 arguments");
+                }
+                mc->resolved_callee = "ControlSurfaceGuard__reset_fault";
+                mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
             }
