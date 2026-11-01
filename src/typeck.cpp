@@ -173,6 +173,16 @@ void TypeChecker::register_structs() {
         {"state", Type{BaseTypeKind::I32, false, false}},
         {"trip_code", Type{BaseTypeKind::I32, false, false}}
     }, {"min_rpm", "max_rpm", "min_delta_p", "cavitation_limit", "shaft_rpm", "delta_p", "cavitation_count", "state", "trip_code"}, SourceLocation{0, 0}};
+    struct_table_["InertialDisparityGuard"] = StructSignature{"InertialDisparityGuard", {}, {
+        {"max_disparity_mrad", Type{BaseTypeKind::I32, false, false}},
+        {"servo_hard_stop_mrad", Type{BaseTypeKind::I32, false, false}},
+        {"max_disparity_ticks", Type{BaseTypeKind::I32, false, false}},
+        {"state", Type{BaseTypeKind::I32, false, false}},
+        {"active_channel", Type{BaseTypeKind::I32, false, false}},
+        {"disparity_ticks", Type{BaseTypeKind::I32, false, false}},
+        {"last_disparity", Type{BaseTypeKind::I32, false, false}},
+        {"trip_code", Type{BaseTypeKind::I32, false, false}}
+    }, {"max_disparity_mrad", "servo_hard_stop_mrad", "max_disparity_ticks", "state", "active_channel", "disparity_ticks", "last_disparity", "trip_code"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1601,6 +1611,36 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "TurbopumpMonitor", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "InertialDisparityGuard::new") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "InertialDisparityGuard::new takes exactly 3 arguments (max_disparity_mrad, servo_hard_stop_mrad, max_disparity_ticks)");
+            } else {
+                for (size_t i = 0; i < 3; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "InertialDisparityGuard parameters must be 'i32'");
+                    }
+                }
+                int64_t disp_v = 0, servo_v = 0, ticks_v = 0;
+                bool b_disp = extract_const_int(call->arguments[0].get(), disp_v);
+                bool b_servo = extract_const_int(call->arguments[1].get(), servo_v);
+                bool b_ticks = extract_const_int(call->arguments[2].get(), ticks_v);
+
+                if (b_disp && disp_v <= 0) {
+                    emit_error(call->location, "invalid inertial disparity threshold (" + std::to_string(disp_v) + "): must be positive");
+                }
+                if (b_disp && b_servo && servo_v <= disp_v) {
+                    emit_error(call->location, "invalid servo hard stop limit (" + std::to_string(servo_v) +
+                               "): must exceed max disparity threshold (" + std::to_string(disp_v) + ")");
+                }
+                if (b_ticks && ticks_v <= 0) {
+                    emit_error(call->location, "invalid disparity frame limit (" + std::to_string(ticks_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "InertialDisparityGuard", false, false};
             return call->evaluated_type;
         }
 
@@ -3176,6 +3216,115 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "TurbopumpMonitor__cavitation_count";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "InertialDisparityGuard") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "InertialDisparityGuard::update takes exactly 3 arguments (primary_angle_mrad, secondary_angle_mrad, servo_deflection_mrad)");
+                } else {
+                    for (size_t i = 0; i < 3; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "InertialDisparityGuard::update arguments must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "InertialDisparityGuard__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_nominal") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::is_nominal takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__is_nominal";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_warning") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::is_warning takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__is_warning";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_isolated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::is_isolated takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__is_isolated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "active_channel") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::active_channel takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__active_channel";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_primary_active") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::is_primary_active takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__is_primary_active";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_backup_engaged") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::is_backup_engaged takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__is_backup_engaged";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "disparity_ticks") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::disparity_ticks takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__disparity_ticks";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "last_disparity") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::last_disparity takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__last_disparity";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "trip_code") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::trip_code takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__trip_code";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "InertialDisparityGuard::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "InertialDisparityGuard__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
                 return mc->evaluated_type;
             }
         }
