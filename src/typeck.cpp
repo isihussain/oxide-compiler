@@ -153,6 +153,16 @@ void TypeChecker::register_structs() {
         {"last_valid_sample", Type{BaseTypeKind::I32, false, false}},
         {"total_anomalies", Type{BaseTypeKind::I32, false, false}}
     }, {"min_val", "max_val", "degrade_threshold", "isolate_threshold", "recovery_threshold", "state", "anomaly_count", "healthy_count", "last_valid_sample", "total_anomalies"}, SourceLocation{0, 0}};
+    struct_table_["TurbopumpMonitor"] = StructSignature{"TurbopumpMonitor", {}, {
+        {"max_rpm", Type{BaseTypeKind::I32, false, false}},
+        {"min_delta_p", Type{BaseTypeKind::I32, false, false}},
+        {"max_cavitation_ticks", Type{BaseTypeKind::I32, false, false}},
+        {"state", Type{BaseTypeKind::I32, false, false}},
+        {"cavitation_ticks", Type{BaseTypeKind::I32, false, false}},
+        {"last_rpm", Type{BaseTypeKind::I32, false, false}},
+        {"last_delta_p", Type{BaseTypeKind::I32, false, false}},
+        {"trip_reason", Type{BaseTypeKind::I32, false, false}}
+    }, {"max_rpm", "min_delta_p", "max_cavitation_ticks", "state", "cavitation_ticks", "last_rpm", "last_delta_p", "trip_reason"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1521,6 +1531,37 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "SensorFDIR", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "TurbopumpMonitor::new") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "TurbopumpMonitor::new takes exactly 3 arguments (max_rpm, min_delta_p, max_cavitation_ticks)");
+            } else {
+                for (size_t i = 0; i < 3; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "TurbopumpMonitor parameter must be 'i32'");
+                    }
+                }
+                int64_t rpm = 0, dp = 0, ticks = 0;
+                bool b_rpm = extract_const_int(call->arguments[0].get(), rpm);
+                bool b_dp = extract_const_int(call->arguments[1].get(), dp);
+                bool b_ticks = extract_const_int(call->arguments[2].get(), ticks);
+                if (b_rpm && rpm <= 0) {
+                    emit_error(call->location, "invalid turbopump monitor max_rpm (" + std::to_string(rpm) +
+                               "): must be positive");
+                }
+                if (b_dp && dp <= 0) {
+                    emit_error(call->location, "invalid turbopump monitor min_delta_p (" + std::to_string(dp) +
+                               "): must be positive");
+                }
+                if (b_ticks && ticks <= 0) {
+                    emit_error(call->location, "invalid turbopump monitor max_cavitation_ticks (" + std::to_string(ticks) +
+                               "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "TurbopumpMonitor", false, false};
             return call->evaluated_type;
         }
 
@@ -2927,6 +2968,117 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "SensorFDIR::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "SensorFDIR__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "TurbopumpMonitor") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "TurbopumpMonitor::update takes exactly 2 arguments (rpm, delta_p)");
+                } else {
+                    Type t1 = check_expression(*mc->arguments[0]);
+                    Type t2 = check_expression(*mc->arguments[1]);
+                    if (t1.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "TurbopumpMonitor::update rpm must be 'i32'");
+                    }
+                    if (t2.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[1]->location, "TurbopumpMonitor::update delta_p must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "TurbopumpMonitor__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_nominal") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::is_nominal takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__is_nominal";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_throttled") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::is_throttled takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__is_throttled";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_cutoff") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::is_cutoff takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__is_cutoff";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "state") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::state takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__state";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "command_thrust") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::command_thrust takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__command_thrust";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "cavitation_ticks") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::cavitation_ticks takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__cavitation_ticks";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "last_rpm") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::last_rpm takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__last_rpm";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "last_delta_p") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::last_delta_p takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__last_delta_p";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "trip_reason") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::trip_reason takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__trip_reason";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "TurbopumpMonitor::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "TurbopumpMonitor__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Unit, false, false};
                 return mc->evaluated_type;

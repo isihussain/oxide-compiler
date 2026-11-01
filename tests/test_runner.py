@@ -52,6 +52,7 @@ def run():
         ("examples/34_software_bus_pubsub.rs", 42, ["--profile=aerospace"]),
         ("examples/35_watchdog_task_strobe.rs", 42, ["--profile=aerospace"]),
         ("examples/36_sensor_fdir_isolation.rs", 42, ["--profile=aerospace"]),
+        ("examples/37_turbopump_cavitation_surveillance.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -173,6 +174,10 @@ def run():
         ("tests/ui/fail_fdir_threshold_inverted.rs", "invalid sensor FDIR thresholds: isolate_threshold (3) must exceed degrade_threshold (6)", []),
         ("tests/ui/fail_fdir_degrade_zero.rs", "invalid sensor FDIR degrade_threshold (0): must be positive", []),
         ("tests/ui/fail_fdir_immutable_update.rs", "cannot borrow immutable local variable 'fdir' as mutable in method call", []),
+        ("tests/ui/fail_turbopump_rpm_zero.rs", "invalid turbopump monitor max_rpm (0): must be positive", []),
+        ("tests/ui/fail_turbopump_delta_p_zero.rs", "invalid turbopump monitor min_delta_p (0): must be positive", []),
+        ("tests/ui/fail_turbopump_ticks_negative.rs", "invalid turbopump monitor max_cavitation_ticks (-1): must be positive", []),
+        ("tests/ui/fail_turbopump_immutable_update.rs", "cannot borrow immutable local variable 'tp' as mutable in method call", []),
     ]
 
     for item in negative_tests:
