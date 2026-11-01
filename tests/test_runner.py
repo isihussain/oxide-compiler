@@ -59,6 +59,7 @@ def run():
         ("examples/41_control_surface_stall.rs", 42, ["--profile=aerospace"]),
         ("examples/42_touchdown_radar_wow_gate.rs", 42, ["--profile=aerospace"]),
         ("examples/43_algebraic_identities_and_dce.rs", 42, []),
+        ("examples/44_loop_unrolling_and_inlining.rs", 42, []),
     ]
 
     passed = 0

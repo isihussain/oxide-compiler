@@ -2032,6 +2032,12 @@ void CCodeGenerator::emit_statement(const Statement& stmt) {
                 out_ << "\n";
                 return;
             }
+            if (auto* block = dynamic_cast<const BlockExpr*>(expr_stmt->expr.get())) {
+                indent();
+                emit_block(*block, false);
+                out_ << "\n";
+                return;
+            }
             indent();
             emit_expression(*expr_stmt->expr);
             out_ << ";\n";
