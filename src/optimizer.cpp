@@ -213,12 +213,98 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
             }
         }
 
+        // Algebraic identities and annihilators:
+        if (bin->op == BinaryOp::Add) {
+            if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
+                if (r_int->value == 0) {
+                    return std::move(bin->left);
+                }
+            }
+            if (auto* l_int = dynamic_cast<IntegerLiteralExpr*>(bin->left.get())) {
+                if (l_int->value == 0) {
+                    return std::move(bin->right);
+                }
+            }
+            if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
+                if (r_fl->value == 0.0) {
+                    return std::move(bin->left);
+                }
+            }
+            if (auto* l_fl = dynamic_cast<FloatLiteralExpr*>(bin->left.get())) {
+                if (l_fl->value == 0.0) {
+                    return std::move(bin->right);
+                }
+            }
+        }
+        if (bin->op == BinaryOp::Sub) {
+            if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
+                if (r_int->value == 0) {
+                    return std::move(bin->left);
+                }
+            }
+            if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
+                if (r_fl->value == 0.0) {
+                    return std::move(bin->left);
+                }
+            }
+        }
+        if (bin->op == BinaryOp::Mul) {
+            if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
+                if (r_int->value == 1) {
+                    return std::move(bin->left);
+                }
+                if (r_int->value == 0) {
+                    auto res = std::make_unique<IntegerLiteralExpr>(0, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+            }
+            if (auto* l_int = dynamic_cast<IntegerLiteralExpr*>(bin->left.get())) {
+                if (l_int->value == 1) {
+                    return std::move(bin->right);
+                }
+                if (l_int->value == 0) {
+                    auto res = std::make_unique<IntegerLiteralExpr>(0, bin->location);
+                    res->evaluated_type = bin->evaluated_type;
+                    return res;
+                }
+            }
+            if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
+                if (r_fl->value == 1.0) {
+                    return std::move(bin->left);
+                }
+            }
+            if (auto* l_fl = dynamic_cast<FloatLiteralExpr*>(bin->left.get())) {
+                if (l_fl->value == 1.0) {
+                    return std::move(bin->right);
+                }
+            }
+        }
+        if (bin->op == BinaryOp::Div) {
+            if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
+                if (r_int->value == 1) {
+                    return std::move(bin->left);
+                }
+            }
+            if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
+                if (r_fl->value == 1.0) {
+                    return std::move(bin->left);
+                }
+            }
+        }
+
         return expr;
     }
 
     if (auto* un = dynamic_cast<UnaryExpr*>(expr.get())) {
         un->operand = fold_expression(std::move(un->operand));
         if (un->op == UnaryOp::Negate) {
+            // Double negation: -(-x) -> x
+            if (auto* inner_un = dynamic_cast<UnaryExpr*>(un->operand.get())) {
+                if (inner_un->op == UnaryOp::Negate) {
+                    return std::move(inner_un->operand);
+                }
+            }
             if (auto* int_lit = dynamic_cast<IntegerLiteralExpr*>(un->operand.get())) {
                 auto res = std::make_unique<IntegerLiteralExpr>(-int_lit->value, un->location);
                 res->evaluated_type = un->evaluated_type;
@@ -230,6 +316,12 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
                 return res;
             }
         } else if (un->op == UnaryOp::Not) {
+            // Double logical not: !(!x) -> x
+            if (auto* inner_un = dynamic_cast<UnaryExpr*>(un->operand.get())) {
+                if (inner_un->op == UnaryOp::Not) {
+                    return std::move(inner_un->operand);
+                }
+            }
             if (auto* bool_lit = dynamic_cast<BoolLiteralExpr*>(un->operand.get())) {
                 auto res = std::make_unique<BoolLiteralExpr>(!bool_lit->value, un->location);
                 res->evaluated_type = un->evaluated_type;
@@ -253,6 +345,21 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
 
     if (auto* if_expr = dynamic_cast<IfExpr*>(expr.get())) {
         if_expr->condition = fold_expression(std::move(if_expr->condition));
+        if (auto* cond_bool = dynamic_cast<BoolLiteralExpr*>(if_expr->condition.get())) {
+            if (cond_bool->value) {
+                // Condition is statically true: eliminate dead else branch
+                if_expr->else_branch = nullptr;
+                if (if_expr->then_branch) optimize_block(*if_expr->then_branch);
+            } else {
+                // Condition is statically false: prune then branch statements
+                if (if_expr->then_branch) {
+                    if_expr->then_branch->statements.clear();
+                    if_expr->then_branch->trailing_expr = nullptr;
+                }
+                if (if_expr->else_branch) optimize_block(*if_expr->else_branch);
+            }
+            return expr;
+        }
         if (if_expr->then_branch) optimize_block(*if_expr->then_branch);
         if (if_expr->else_branch) optimize_block(*if_expr->else_branch);
         return expr;
@@ -260,6 +367,15 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
 
     if (auto* while_expr = dynamic_cast<WhileExpr*>(expr.get())) {
         while_expr->condition = fold_expression(std::move(while_expr->condition));
+        if (auto* cond_bool = dynamic_cast<BoolLiteralExpr*>(while_expr->condition.get())) {
+            if (!cond_bool->value) {
+                // while false loop body is dead code: prune statements
+                if (while_expr->body) {
+                    while_expr->body->statements.clear();
+                    while_expr->body->trailing_expr = nullptr;
+                }
+            }
+        }
         if (while_expr->body) optimize_block(*while_expr->body);
         return expr;
     }
