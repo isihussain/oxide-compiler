@@ -1904,6 +1904,27 @@ void CCodeGenerator::emit_function(const Function& fn) {
         return;
     }
 
+    if (fn.has_attribute("tailrec")) {
+        indent();
+        out_ << map_type(fn.return_type) << " " << fn.name << "(";
+        if (fn.parameters.empty()) {
+            out_ << "void";
+        } else {
+            for (size_t i = 0; i < fn.parameters.size(); ++i) {
+                if (i > 0) out_ << ", ";
+                out_ << map_type(fn.parameters[i].type) << " " << fn.parameters[i].name;
+            }
+        }
+        out_ << ") {\n";
+        indent_level_++;
+        line("__oxide_tailrec_" + fn.name + ": ;");
+        emit_tail_block(*fn.body, fn);
+        indent_level_--;
+        line("}");
+        line();
+        return;
+    }
+
     indent();
     out_ << map_type(fn.return_type) << " " << fn.name << "(";
     if (fn.parameters.empty()) {
@@ -1917,6 +1938,115 @@ void CCodeGenerator::emit_function(const Function& fn) {
     out_ << ") ";
     emit_block(*fn.body, true, fn.name == "main");
     line();
+}
+
+bool CCodeGenerator::try_emit_tail_call(const Expression& expr, const Function& fn) {
+    const auto* call = dynamic_cast<const CallExpr*>(&expr);
+    if (!call || call->callee != fn.name) {
+        return false;
+    }
+
+    line("{");
+    indent_level_++;
+    for (size_t i = 0; i < call->arguments.size(); ++i) {
+        std::string temp_var = "__tail_arg_" + std::to_string(i);
+        std::string type_str = "int32_t";
+        if (i < fn.parameters.size()) {
+            type_str = map_type(fn.parameters[i].type);
+        }
+        indent();
+        out_ << type_str << " " << temp_var << " = ";
+        emit_expression(*call->arguments[i]);
+        out_ << ";\n";
+    }
+
+    for (size_t i = 0; i < call->arguments.size() && i < fn.parameters.size(); ++i) {
+        line(fn.parameters[i].name + " = __tail_arg_" + std::to_string(i) + ";");
+    }
+
+    line("goto __oxide_tailrec_" + fn.name + ";");
+    indent_level_--;
+    line("}");
+    return true;
+}
+
+void CCodeGenerator::emit_tail_block(const BlockExpr& block, const Function& fn) {
+    for (const auto& stmt : block.statements) {
+        if (const auto* es = dynamic_cast<const ExprStmt*>(stmt.get())) {
+            if (const auto* ret = dynamic_cast<const ReturnExpr*>(es->expr.get())) {
+                if (ret->value) {
+                    if (try_emit_tail_call(*ret->value, fn)) {
+                        continue;
+                    }
+                    if (const auto* if_expr = dynamic_cast<const IfExpr*>(ret->value.get())) {
+                        indent();
+                        out_ << "if (";
+                        emit_expression(*if_expr->condition);
+                        out_ << ") {\n";
+                        indent_level_++;
+                        emit_tail_block(*if_expr->then_branch, fn);
+                        indent_level_--;
+                        line("}");
+                        if (if_expr->else_branch) {
+                            indent();
+                            out_ << "else {\n";
+                            indent_level_++;
+                            emit_tail_block(*if_expr->else_branch, fn);
+                            indent_level_--;
+                            line("}");
+                        }
+                        continue;
+                    }
+                    indent();
+                    out_ << "return ";
+                    emit_expression(*ret->value);
+                    out_ << ";\n";
+                    continue;
+                } else {
+                    line("return;");
+                    continue;
+                }
+            }
+        }
+        emit_statement(*stmt);
+    }
+
+    if (block.trailing_expr) {
+        if (try_emit_tail_call(*block.trailing_expr, fn)) {
+            return;
+        }
+        if (const auto* if_expr = dynamic_cast<const IfExpr*>(block.trailing_expr.get())) {
+            indent();
+            out_ << "if (";
+            emit_expression(*if_expr->condition);
+            out_ << ") {\n";
+            indent_level_++;
+            emit_tail_block(*if_expr->then_branch, fn);
+            indent_level_--;
+            line("}");
+            if (if_expr->else_branch) {
+                indent();
+                out_ << "else {\n";
+                indent_level_++;
+                emit_tail_block(*if_expr->else_branch, fn);
+                indent_level_--;
+                line("}");
+            }
+            return;
+        }
+        if (block.evaluated_type.kind != BaseTypeKind::Unit) {
+            indent();
+            out_ << "return ";
+            emit_expression(*block.trailing_expr);
+            out_ << ";\n";
+        } else {
+            indent();
+            emit_expression(*block.trailing_expr);
+            out_ << ";\n";
+        }
+    } else if (block.evaluated_type.kind != BaseTypeKind::Unit) {
+        line("return 0;");
+    }
 }
 
 void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body, bool is_main) {
