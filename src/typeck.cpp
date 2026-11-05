@@ -576,6 +576,129 @@ bool TypeChecker::check() {
     return errors_.empty();
 }
 
+static void collect_calls_in_block(const BlockExpr& block, const std::string& target_name, std::vector<const CallExpr*>& out);
+
+static void collect_calls_in_expr(const Expression& expr, const std::string& target_name, std::vector<const CallExpr*>& out) {
+    if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
+        if (call->callee == target_name) {
+            out.push_back(call);
+        }
+        for (const auto& arg : call->arguments) {
+            if (arg) collect_calls_in_expr(*arg, target_name, out);
+        }
+    } else if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
+        if (bin->left) collect_calls_in_expr(*bin->left, target_name, out);
+        if (bin->right) collect_calls_in_expr(*bin->right, target_name, out);
+    } else if (auto* un = dynamic_cast<const UnaryExpr*>(&expr)) {
+        if (un->operand) collect_calls_in_expr(*un->operand, target_name, out);
+    } else if (auto* if_expr = dynamic_cast<const IfExpr*>(&expr)) {
+        if (if_expr->condition) collect_calls_in_expr(*if_expr->condition, target_name, out);
+        if (if_expr->then_branch) collect_calls_in_block(*if_expr->then_branch, target_name, out);
+        if (if_expr->else_branch) collect_calls_in_block(*if_expr->else_branch, target_name, out);
+    } else if (auto* blk = dynamic_cast<const BlockExpr*>(&expr)) {
+        collect_calls_in_block(*blk, target_name, out);
+    } else if (auto* mc = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        if (mc->receiver) collect_calls_in_expr(*mc->receiver, target_name, out);
+        for (const auto& arg : mc->arguments) {
+            if (arg) collect_calls_in_expr(*arg, target_name, out);
+        }
+    } else if (auto* arr = dynamic_cast<const ArrayLiteralExpr*>(&expr)) {
+        for (const auto& elem : arr->elements) {
+            if (elem) collect_calls_in_expr(*elem, target_name, out);
+        }
+    } else if (auto* idx = dynamic_cast<const IndexExpr*>(&expr)) {
+        if (idx->target) collect_calls_in_expr(*idx->target, target_name, out);
+        if (idx->index) collect_calls_in_expr(*idx->index, target_name, out);
+    } else if (auto* sinit = dynamic_cast<const StructInitExpr*>(&expr)) {
+        for (const auto& f : sinit->fields) {
+            if (f.value) collect_calls_in_expr(*f.value, target_name, out);
+        }
+    } else if (auto* fa = dynamic_cast<const FieldAccessExpr*>(&expr)) {
+        if (fa->target) collect_calls_in_expr(*fa->target, target_name, out);
+    } else if (auto* mexpr = dynamic_cast<const MatchExpr*>(&expr)) {
+        if (mexpr->target) collect_calls_in_expr(*mexpr->target, target_name, out);
+        for (const auto& arm : mexpr->arms) {
+            if (arm.body) collect_calls_in_expr(*arm.body, target_name, out);
+        }
+    } else if (auto* ret = dynamic_cast<const ReturnExpr*>(&expr)) {
+        if (ret->value) collect_calls_in_expr(*ret->value, target_name, out);
+    } else if (auto* for_loop = dynamic_cast<const ForExpr*>(&expr)) {
+        if (for_loop->iterable) collect_calls_in_expr(*for_loop->iterable, target_name, out);
+        if (for_loop->body) collect_calls_in_block(*for_loop->body, target_name, out);
+    } else if (auto* while_loop = dynamic_cast<const WhileExpr*>(&expr)) {
+        if (while_loop->condition) collect_calls_in_expr(*while_loop->condition, target_name, out);
+        if (while_loop->body) collect_calls_in_block(*while_loop->body, target_name, out);
+    }
+}
+
+static void collect_calls_in_stmt(const Statement& stmt, const std::string& target_name, std::vector<const CallExpr*>& out) {
+    if (auto* let = dynamic_cast<const LetStmt*>(&stmt)) {
+        if (let->initializer) collect_calls_in_expr(*let->initializer, target_name, out);
+    } else if (auto* es = dynamic_cast<const ExprStmt*>(&stmt)) {
+        if (es->expr) collect_calls_in_expr(*es->expr, target_name, out);
+    }
+}
+
+static void collect_calls_in_block(const BlockExpr& block, const std::string& target_name, std::vector<const CallExpr*>& out) {
+    for (const auto& s : block.statements) {
+        if (s) collect_calls_in_stmt(*s, target_name, out);
+    }
+    if (block.trailing_expr) {
+        collect_calls_in_expr(*block.trailing_expr, target_name, out);
+    }
+}
+
+static void collect_tail_calls_in_block(const BlockExpr& block, const std::string& target_name, std::set<const CallExpr*>& out);
+
+static void collect_tail_calls_in_expr(const Expression& expr, const std::string& target_name, std::set<const CallExpr*>& out) {
+    if (auto* call = dynamic_cast<const CallExpr*>(&expr)) {
+        if (call->callee == target_name) {
+            out.insert(call);
+        }
+    } else if (auto* if_expr = dynamic_cast<const IfExpr*>(&expr)) {
+        if (if_expr->then_branch) collect_tail_calls_in_block(*if_expr->then_branch, target_name, out);
+        if (if_expr->else_branch) collect_tail_calls_in_block(*if_expr->else_branch, target_name, out);
+    } else if (auto* blk = dynamic_cast<const BlockExpr*>(&expr)) {
+        collect_tail_calls_in_block(*blk, target_name, out);
+    }
+}
+
+static void collect_tail_calls_in_block(const BlockExpr& block, const std::string& target_name, std::set<const CallExpr*>& out) {
+    for (const auto& s : block.statements) {
+        if (auto* es = dynamic_cast<const ExprStmt*>(s.get())) {
+            if (auto* ret = dynamic_cast<const ReturnExpr*>(es->expr.get())) {
+                if (ret->value) {
+                    collect_tail_calls_in_expr(*ret->value, target_name, out);
+                }
+            }
+        }
+    }
+    if (block.trailing_expr) {
+        collect_tail_calls_in_expr(*block.trailing_expr, target_name, out);
+    }
+}
+
+void TypeChecker::check_tailrec(const Function& func) {
+    if (!func.body) return;
+
+    std::vector<const CallExpr*> all_calls;
+    collect_calls_in_block(*func.body, func.name, all_calls);
+
+    if (all_calls.empty()) {
+        emit_error(func.location, "function '" + func.name + "' marked with #[tailrec] contains no recursive calls");
+        return;
+    }
+
+    std::set<const CallExpr*> valid_tail_calls;
+    collect_tail_calls_in_block(*func.body, func.name, valid_tail_calls);
+
+    for (const auto* call : all_calls) {
+        if (valid_tail_calls.find(call) == valid_tail_calls.end()) {
+            emit_error(call->location, "function '" + func.name + "' marked with #[tailrec] contains a recursive call that is not in tail position");
+        }
+    }
+}
+
 void TypeChecker::check_function(Function& func) {
     auto prev_return = current_function_return_type_;
     current_function_return_type_ = func.return_type;
@@ -587,6 +710,10 @@ void TypeChecker::check_function(Function& func) {
     check_block(*func.body, func.return_type, true);
     exit_scope();
     current_function_return_type_ = prev_return;
+
+    if (func.has_attribute("tailrec")) {
+        check_tailrec(func);
+    }
 }
 
 void TypeChecker::check_block(BlockExpr& block, const Type& expected_return_type, bool is_function_root) {

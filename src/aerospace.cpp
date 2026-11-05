@@ -192,6 +192,30 @@ void AerospaceVerifier::check_recursion() {
         if (it != call_graph_.end()) {
             for (const auto& neighbor : it->second) {
                 if (state[neighbor] == 1) {
+                    // Check if self-recursion with #[tailrec] (lowered to iterative loop with O(1) stack space)
+                    if (neighbor == node) {
+                        bool is_tailrec = false;
+                        for (const auto& fn : program_.functions) {
+                            if (fn->name == neighbor && fn->has_attribute("tailrec")) {
+                                is_tailrec = true;
+                                break;
+                            }
+                        }
+                        if (!is_tailrec) {
+                            for (const auto& ib : program_.impl_blocks) {
+                                for (const auto& fn : ib->methods) {
+                                    if (fn->name == neighbor && fn->has_attribute("tailrec")) {
+                                        is_tailrec = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (is_tailrec) {
+                            continue;
+                        }
+                    }
+
                     // Back-edge found: cycle starts at neighbor in current path
                     auto cycle_start = std::find(path.begin(), path.end(), neighbor);
                     std::ostringstream ss;

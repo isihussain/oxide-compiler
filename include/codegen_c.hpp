@@ -33,6 +33,8 @@ private:
     void emit_state_machine_methods();
     void emit_forward_declarations();
     void emit_function(const Function& func);
+    void emit_tail_block(const BlockExpr& block, const Function& fn);
+    bool try_emit_tail_call(const Expression& expr, const Function& fn);
     void emit_block(const BlockExpr& block, bool is_function_body, bool is_main = false);
     void emit_statement(const Statement& stmt);
     void emit_expression(const Expression& expr);

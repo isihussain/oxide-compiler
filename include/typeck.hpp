@@ -156,6 +156,7 @@ private:
     void register_functions();
     void register_impl_blocks();
     void check_function(Function& func);
+    void check_tailrec(const Function& func);
     void check_block(BlockExpr& block, const Type& expected_return_type, bool is_function_root);
     void check_statement(Statement& stmt);
     Type check_expression(Expression& expr);

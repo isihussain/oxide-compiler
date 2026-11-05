@@ -60,6 +60,7 @@ def run():
         ("examples/42_touchdown_radar_wow_gate.rs", 42, ["--profile=aerospace"]),
         ("examples/43_algebraic_identities_and_dce.rs", 42, []),
         ("examples/44_loop_unrolling_and_inlining.rs", 42, []),
+        ("examples/45_tail_call_optimization.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -199,6 +200,8 @@ def run():
         ("tests/ui/fail_touchdown_alt_negative.rs", "invalid max_touchdown_alt_cm (-50): must be positive", []),
         ("tests/ui/fail_touchdown_force_zero.rs", "invalid min_wow_force_n (0): must be positive", []),
         ("tests/ui/fail_touchdown_immutable_update.rs", "cannot borrow immutable local variable 'gate' as mutable in method call", []),
+        ("tests/ui/fail_tailrec_not_tail_pos.rs", "contains a recursive call that is not in tail position", []),
+        ("tests/ui/fail_tailrec_no_recursion.rs", "contains no recursive calls", []),
     ]
 
     for item in negative_tests:

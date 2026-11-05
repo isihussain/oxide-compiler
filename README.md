@@ -196,8 +196,10 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_mmio_write_readonly.rs (correctly rejected)
 [PASS] fail_mmio_read_writeonly.rs (correctly rejected)
 [PASS] fail_mmio_missing_barrier.rs (correctly rejected)
+[PASS] fail_tailrec_not_tail_pos.rs (correctly rejected)
+[PASS] fail_tailrec_no_recursion.rs (correctly rejected)
 ==================================================
-Results: 155/155 tests passed.
+Results: 160/160 tests passed.
 ```
 
 ---
@@ -268,6 +270,11 @@ Results: 155/155 tests passed.
   - [x] Constant-bounded loop unrolling over RangeExpr bounds (trip count <= 8)
   - [x] Dead loop elimination on inverted bounds (start >= end)
   - [x] Pure leaf function inline expansion with direct parameter substitution
+- [x] **Milestone 11: Tail Call Optimization (TCO) & Stack Frame Elimination**
+  - [x] Compile-time tail position verification for functions marked with `#[tailrec]`
+  - [x] Static detection and diagnostic rejection of non-tail recursion and non-recursive annotations
+  - [x] Lowering of tail-recursive self-calls to iterative parameter reassignments and jumps ($O(1)$ stack space)
+  - [x] Exemption of verified tail-recursive functions from NASA/JPL Rule 3 recursion bans under `--profile=aerospace`
 
 ---
 
