@@ -707,6 +707,16 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
                     return std::move(bin->left);
                 }
             }
+            if (auto* l_var = dynamic_cast<VariableExpr*>(bin->left.get())) {
+                if (auto* r_var = dynamic_cast<VariableExpr*>(bin->right.get())) {
+                    if (l_var->name == r_var->name) {
+                        changed_ = true;
+                        auto res = std::make_unique<IntegerLiteralExpr>(0, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
+                }
+            }
         }
         if (bin->op == BinaryOp::Mul) {
             if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
@@ -749,6 +759,64 @@ std::unique_ptr<Expression> Optimizer::fold_expression(std::unique_ptr<Expressio
             if (auto* r_fl = dynamic_cast<FloatLiteralExpr*>(bin->right.get())) {
                 if (r_fl->value == 1.0) {
                     return std::move(bin->left);
+                }
+            }
+            if (auto* l_var = dynamic_cast<VariableExpr*>(bin->left.get())) {
+                if (auto* r_var = dynamic_cast<VariableExpr*>(bin->right.get())) {
+                    if (l_var->name == r_var->name) {
+                        changed_ = true;
+                        auto res = std::make_unique<IntegerLiteralExpr>(1, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
+                }
+            }
+        }
+        if (bin->op == BinaryOp::Equal) {
+            if (auto* l_var = dynamic_cast<VariableExpr*>(bin->left.get())) {
+                if (auto* r_var = dynamic_cast<VariableExpr*>(bin->right.get())) {
+                    if (l_var->name == r_var->name) {
+                        changed_ = true;
+                        auto res = std::make_unique<BoolLiteralExpr>(true, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
+                }
+            }
+        }
+        if (bin->op == BinaryOp::NotEqual) {
+            if (auto* l_var = dynamic_cast<VariableExpr*>(bin->left.get())) {
+                if (auto* r_var = dynamic_cast<VariableExpr*>(bin->right.get())) {
+                    if (l_var->name == r_var->name) {
+                        changed_ = true;
+                        auto res = std::make_unique<BoolLiteralExpr>(false, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
+                }
+            }
+        }
+        if (bin->op == BinaryOp::LessEqual || bin->op == BinaryOp::GreaterEqual) {
+            if (auto* l_var = dynamic_cast<VariableExpr*>(bin->left.get())) {
+                if (auto* r_var = dynamic_cast<VariableExpr*>(bin->right.get())) {
+                    if (l_var->name == r_var->name) {
+                        changed_ = true;
+                        auto res = std::make_unique<BoolLiteralExpr>(true, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
+                }
+            }
+        }
+        if (bin->op == BinaryOp::Less || bin->op == BinaryOp::Greater) {
+            if (auto* l_var = dynamic_cast<VariableExpr*>(bin->left.get())) {
+                if (auto* r_var = dynamic_cast<VariableExpr*>(bin->right.get())) {
+                    if (l_var->name == r_var->name) {
+                        changed_ = true;
+                        auto res = std::make_unique<BoolLiteralExpr>(false, bin->location);
+                        res->evaluated_type = bin->evaluated_type;
+                        return res;
+                    }
                 }
             }
         }
