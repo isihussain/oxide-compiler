@@ -115,6 +115,14 @@ void BinaryExpr::dump(int indent) const {
         case BinaryOp::Sub: op_str = "-"; break;
         case BinaryOp::Mul: op_str = "*"; break;
         case BinaryOp::Div: op_str = "/"; break;
+        case BinaryOp::Modulo: op_str = "%"; break;
+        case BinaryOp::BitAnd: op_str = "&"; break;
+        case BinaryOp::BitOr: op_str = "|"; break;
+        case BinaryOp::BitXor: op_str = "^"; break;
+        case BinaryOp::Shl: op_str = "<<"; break;
+        case BinaryOp::Shr: op_str = ">>"; break;
+        case BinaryOp::LogicalAnd: op_str = "&&"; break;
+        case BinaryOp::LogicalOr: op_str = "||"; break;
         case BinaryOp::Equal: op_str = "=="; break;
         case BinaryOp::NotEqual: op_str = "!="; break;
         case BinaryOp::Less: op_str = "<"; break;

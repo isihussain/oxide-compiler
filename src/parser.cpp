@@ -624,7 +624,7 @@ std::unique_ptr<Expression> Parser::parse_expression() {
 }
 
 std::unique_ptr<Expression> Parser::parse_assignment() {
-    auto expr = parse_equality();
+    auto expr = parse_logical_or();
 
     if (match(TokenType::Eq)) {
         SourceLocation loc = previous().location;
@@ -640,6 +640,66 @@ std::unique_ptr<Expression> Parser::parse_assignment() {
         }
         auto value = parse_assignment();
         return std::make_unique<AssignExpr>(std::move(expr), std::move(value), loc);
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expression> Parser::parse_logical_or() {
+    auto expr = parse_logical_and();
+
+    while (match(TokenType::PipePipe)) {
+        SourceLocation loc = previous().location;
+        auto right = parse_logical_and();
+        expr = std::make_unique<BinaryExpr>(BinaryOp::LogicalOr, std::move(expr), std::move(right), loc);
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expression> Parser::parse_logical_and() {
+    auto expr = parse_bit_or();
+
+    while (match(TokenType::AmpAmp)) {
+        SourceLocation loc = previous().location;
+        auto right = parse_bit_or();
+        expr = std::make_unique<BinaryExpr>(BinaryOp::LogicalAnd, std::move(expr), std::move(right), loc);
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expression> Parser::parse_bit_or() {
+    auto expr = parse_bit_xor();
+
+    while (match(TokenType::Pipe)) {
+        SourceLocation loc = previous().location;
+        auto right = parse_bit_xor();
+        expr = std::make_unique<BinaryExpr>(BinaryOp::BitOr, std::move(expr), std::move(right), loc);
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expression> Parser::parse_bit_xor() {
+    auto expr = parse_bit_and();
+
+    while (match(TokenType::Caret)) {
+        SourceLocation loc = previous().location;
+        auto right = parse_bit_and();
+        expr = std::make_unique<BinaryExpr>(BinaryOp::BitXor, std::move(expr), std::move(right), loc);
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expression> Parser::parse_bit_and() {
+    auto expr = parse_equality();
+
+    while (match(TokenType::Amp)) {
+        SourceLocation loc = previous().location;
+        auto right = parse_equality();
+        expr = std::make_unique<BinaryExpr>(BinaryOp::BitAnd, std::move(expr), std::move(right), loc);
     }
 
     return expr;
@@ -666,7 +726,7 @@ std::unique_ptr<Expression> Parser::parse_equality() {
 }
 
 std::unique_ptr<Expression> Parser::parse_comparison() {
-    auto expr = parse_term();
+    auto expr = parse_shift();
 
     while (match(TokenType::Lt) || match(TokenType::LtEq) ||
            match(TokenType::Gt) || match(TokenType::GtEq)) {
@@ -680,6 +740,20 @@ std::unique_ptr<Expression> Parser::parse_comparison() {
             case TokenType::GtEq: op = BinaryOp::GreaterEqual; break;
             default: break;
         }
+        auto right = parse_shift();
+        expr = std::make_unique<BinaryExpr>(op, std::move(expr), std::move(right), loc);
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expression> Parser::parse_shift() {
+    auto expr = parse_term();
+
+    while (match(TokenType::Shl) || match(TokenType::Shr)) {
+        TokenType op_type = previous().type;
+        SourceLocation loc = previous().location;
+        BinaryOp op = (op_type == TokenType::Shl) ? BinaryOp::Shl : BinaryOp::Shr;
         auto right = parse_term();
         expr = std::make_unique<BinaryExpr>(op, std::move(expr), std::move(right), loc);
     }
@@ -704,10 +778,17 @@ std::unique_ptr<Expression> Parser::parse_term() {
 std::unique_ptr<Expression> Parser::parse_factor() {
     auto expr = parse_unary();
 
-    while (match(TokenType::Star) || match(TokenType::Slash)) {
+    while (match(TokenType::Star) || match(TokenType::Slash) || match(TokenType::Percent)) {
         TokenType op_type = previous().type;
         SourceLocation loc = previous().location;
-        BinaryOp op = (op_type == TokenType::Star) ? BinaryOp::Mul : BinaryOp::Div;
+        BinaryOp op = BinaryOp::Mul;
+        if (op_type == TokenType::Star) {
+            op = BinaryOp::Mul;
+        } else if (op_type == TokenType::Slash) {
+            op = BinaryOp::Div;
+        } else if (op_type == TokenType::Percent) {
+            op = BinaryOp::Modulo;
+        }
         auto right = parse_unary();
         expr = std::make_unique<BinaryExpr>(op, std::move(expr), std::move(right), loc);
     }
