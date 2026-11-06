@@ -61,6 +61,7 @@ def run():
         ("examples/43_algebraic_identities_and_dce.rs", 42, []),
         ("examples/44_loop_unrolling_and_inlining.rs", 42, []),
         ("examples/45_tail_call_optimization.rs", 42, ["--profile=aerospace"]),
+        ("examples/46_relational_identities_and_self_simplification.rs", 42, []),
     ]
 
     passed = 0
