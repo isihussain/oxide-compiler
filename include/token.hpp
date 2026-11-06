@@ -65,6 +65,14 @@ enum class TokenType {
     Minus,         // '-'
     Star,          // '*'
     Slash,         // '/'
+    Percent,       // '%' (modulo remainder)
+    Caret,         // '^' (bitwise XOR)
+    Pipe,          // '|' (bitwise OR)
+    PipePipe,      // '||' (logical OR)
+    Amp,           // '&' (borrow, reference, or bitwise AND)
+    AmpAmp,        // '&&' (logical AND)
+    Shl,           // '<<' (bitwise left shift)
+    Shr,           // '>>' (bitwise right shift)
     Dot,           // '.'
     DotDot,        // '..' (range operator)
     Eq,            // '=' (assignment)
@@ -74,7 +82,6 @@ enum class TokenType {
     LtEq,          // '<=' (less than or equal)
     Gt,            // '>' (greater than or generic close bracket)
     GtEq,          // '>=' (greater than or equal)
-    Amp,           // '&' (borrow or reference operator)
     Exclamation,   // '!' (logical NOT or macro delimiter)
     Arrow,         // '->' (function return type delimiter)
     FatArrow,      // '=>' (match arm delimiter)

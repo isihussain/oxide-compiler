@@ -2286,6 +2286,14 @@ void CCodeGenerator::emit_expression(const Expression& expr) {
                 case BinaryOp::Sub: out_ << " - "; break;
                 case BinaryOp::Mul: out_ << " * "; break;
                 case BinaryOp::Div: out_ << " / "; break;
+                case BinaryOp::Modulo: out_ << " % "; break;
+                case BinaryOp::BitAnd: out_ << " & "; break;
+                case BinaryOp::BitOr: out_ << " | "; break;
+                case BinaryOp::BitXor: out_ << " ^ "; break;
+                case BinaryOp::Shl: out_ << " << "; break;
+                case BinaryOp::Shr: out_ << " >> "; break;
+                case BinaryOp::LogicalAnd: out_ << " && "; break;
+                case BinaryOp::LogicalOr: out_ << " || "; break;
                 case BinaryOp::Equal: out_ << " == "; break;
                 case BinaryOp::NotEqual: out_ << " != "; break;
                 case BinaryOp::Less: out_ << " < "; break;

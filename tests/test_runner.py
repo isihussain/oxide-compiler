@@ -62,6 +62,7 @@ def run():
         ("examples/44_loop_unrolling_and_inlining.rs", 42, []),
         ("examples/45_tail_call_optimization.rs", 42, ["--profile=aerospace"]),
         ("examples/46_relational_identities_and_self_simplification.rs", 42, []),
+        ("examples/47_bitwise_and_modulo.rs", 42, []),
     ]
 
     passed = 0
@@ -203,6 +204,10 @@ def run():
         ("tests/ui/fail_touchdown_immutable_update.rs", "cannot borrow immutable local variable 'gate' as mutable in method call", []),
         ("tests/ui/fail_tailrec_not_tail_pos.rs", "contains a recursive call that is not in tail position", []),
         ("tests/ui/fail_tailrec_no_recursion.rs", "contains no recursive calls", []),
+        ("tests/ui/fail_modulo_by_zero.rs", "division by zero: integer modulo divisor is 0", []),
+        ("tests/ui/fail_modulo_type_mismatch.rs", "mismatched types in modulo operation", []),
+        ("tests/ui/fail_bitwise_type_mismatch.rs", "mismatched types in bitwise operation", []),
+        ("tests/ui/fail_logical_type_mismatch.rs", "mismatched types in logical operation: operands must be 'bool'", []),
     ]
 
     for item in negative_tests:

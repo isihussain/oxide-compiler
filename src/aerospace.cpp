@@ -470,7 +470,7 @@ int64_t AerospaceVerifier::compute_expr_cycles(const Expression& expr) {
         if (bin->op == BinaryOp::Mul) {
             op_cost = (bin->evaluated_type.kind == BaseTypeKind::F32 || bin->evaluated_type.kind == BaseTypeKind::F64) ? 5 : 3;
             if (bin->evaluated_type.name == "Q16_16") op_cost = 6;
-        } else if (bin->op == BinaryOp::Div) {
+        } else if (bin->op == BinaryOp::Div || bin->op == BinaryOp::Modulo) {
             op_cost = (bin->evaluated_type.kind == BaseTypeKind::F32 || bin->evaluated_type.kind == BaseTypeKind::F64) ? 15 : 20;
             if (bin->evaluated_type.name == "Q16_16") op_cost = 25;
         } else if (bin->op == BinaryOp::Add || bin->op == BinaryOp::Sub) {

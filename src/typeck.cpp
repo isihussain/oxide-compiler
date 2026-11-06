@@ -1134,6 +1134,67 @@ Type TypeChecker::check_expression(Expression& expr) {
                 bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return bin->evaluated_type;
             }
+            case BinaryOp::Modulo: {
+                if (auto* un_r = dynamic_cast<UnaryExpr*>(bin->right.get())) {
+                    if (un_r->op == UnaryOp::Negate) {
+                        if (auto* inner_int = dynamic_cast<IntegerLiteralExpr*>(un_r->operand.get())) {
+                            if (inner_int->value == 0) {
+                                emit_error(bin->location, "division by zero: integer modulo divisor is 0");
+                            }
+                        }
+                    }
+                } else if (auto* r_int = dynamic_cast<IntegerLiteralExpr*>(bin->right.get())) {
+                    if (r_int->value == 0) {
+                        emit_error(bin->location, "division by zero: integer modulo divisor is 0");
+                    }
+                }
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "mismatched types in modulo operation: cannot operate on '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return bin->evaluated_type;
+            }
+            case BinaryOp::BitAnd:
+            case BinaryOp::BitOr:
+            case BinaryOp::BitXor: {
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                if (left_t.kind == BaseTypeKind::Bool && right_t.kind == BaseTypeKind::Bool) {
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "mismatched types in bitwise operation: cannot operate on '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return bin->evaluated_type;
+            }
+            case BinaryOp::Shl:
+            case BinaryOp::Shr: {
+                if (left_t.kind == BaseTypeKind::I32 && right_t.kind == BaseTypeKind::I32) {
+                    bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "mismatched types in shift operation: cannot operate on '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                bin->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return bin->evaluated_type;
+            }
+            case BinaryOp::LogicalAnd:
+            case BinaryOp::LogicalOr: {
+                if (left_t.kind == BaseTypeKind::Bool && right_t.kind == BaseTypeKind::Bool) {
+                    bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                    return bin->evaluated_type;
+                }
+                emit_error(bin->location, "mismatched types in logical operation: operands must be 'bool', found '" +
+                           left_t.to_string() + "' and '" + right_t.to_string() + "'");
+                bin->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return bin->evaluated_type;
+            }
             case BinaryOp::Equal:
             case BinaryOp::NotEqual: {
                 if (!(left_t == right_t)) {

@@ -44,6 +44,13 @@ const char* token_type_name(TokenType type) {
         case TokenType::Minus: return "-";
         case TokenType::Star: return "*";
         case TokenType::Slash: return "/";
+        case TokenType::Percent: return "%";
+        case TokenType::Caret: return "^";
+        case TokenType::Pipe: return "|";
+        case TokenType::PipePipe: return "||";
+        case TokenType::AmpAmp: return "&&";
+        case TokenType::Shl: return "<<";
+        case TokenType::Shr: return ">>";
         case TokenType::Dot: return ".";
         case TokenType::DotDot: return "..";
         case TokenType::Eq: return "=";
@@ -184,6 +191,14 @@ Token Lexer::scan_token() {
         }
         case '*': return Token{TokenType::Star, "*", 0, false, loc};
         case '/': return Token{TokenType::Slash, "/", 0, false, loc};
+        case '%': return Token{TokenType::Percent, "%", 0, false, loc};
+        case '^': return Token{TokenType::Caret, "^", 0, false, loc};
+        case '|': {
+            if (match('|')) {
+                return Token{TokenType::PipePipe, "||", 0, false, loc};
+            }
+            return Token{TokenType::Pipe, "|", 0, false, loc};
+        }
         case '.': {
             if (match('.')) {
                 return Token{TokenType::DotDot, "..", 0, false, loc};
@@ -211,15 +226,26 @@ Token Lexer::scan_token() {
             if (match('=')) {
                 return Token{TokenType::LtEq, "<=", 0, false, loc};
             }
+            if (match('<')) {
+                return Token{TokenType::Shl, "<<", 0, false, loc};
+            }
             return Token{TokenType::Lt, "<", 0, false, loc};
         }
         case '>': {
             if (match('=')) {
                 return Token{TokenType::GtEq, ">=", 0, false, loc};
             }
+            if (match('>')) {
+                return Token{TokenType::Shr, ">>", 0, false, loc};
+            }
             return Token{TokenType::Gt, ">", 0, false, loc};
         }
-        case '&': return Token{TokenType::Amp, "&", 0, false, loc};
+        case '&': {
+            if (match('&')) {
+                return Token{TokenType::AmpAmp, "&&", 0, false, loc};
+            }
+            return Token{TokenType::Amp, "&", 0, false, loc};
+        }
         case ',': return Token{TokenType::Comma, ",", 0, false, loc};
         case ':': {
             if (match(':')) {
