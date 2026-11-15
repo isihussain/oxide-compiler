@@ -199,7 +199,7 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_tailrec_not_tail_pos.rs (correctly rejected)
 [PASS] fail_tailrec_no_recursion.rs (correctly rejected)
 ==================================================
-Results: 192/192 tests passed.
+Results: 196/196 tests passed.
 ```
 
 ---
@@ -282,6 +282,10 @@ Results: 192/192 tests passed.
   - [x] Mars Pathfinder priority ceiling mutex and starvation guard (NASA Pathfinder priority inversion mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] ISRO Chandrayaan-2 Vikram descent throttle corridor and closed-loop throttling guard (Vikram hard landing mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Rosetta / Philae comet landing dual-corroboration cold-gas thruster and anchor harpoon interlock (Philae bounce mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
+- [ ] **Milestone 13: Bare-Metal Avionics & Real-Time RMS Scheduling**
+  - [x] Static Rate-Monotonic Scheduling (RMS) schedulability verifier and task table (`RmsScheduler`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
+  - [ ] Lock-free zero-allocation ISR atomic communication channels (`AtomicChannel`)
+  - [ ] Freestanding bare-metal code generator and linker scripts (`--target=baremetal`)
 
 ---
 

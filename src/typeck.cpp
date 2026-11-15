@@ -270,6 +270,13 @@ void TypeChecker::register_structs() {
         {"is_bounce_mitigation_active", Type{BaseTypeKind::Bool, false, false}},
         {"interlock_trip_count", Type{BaseTypeKind::I32, false, false}}
     }, {"min_gear_strain_n", "min_surface_penetration_mm", "current_gear_strain_n", "current_penetration_mm", "is_corroborated", "is_thruster_armed", "is_harpoon_fired", "is_bounce_mitigation_active", "interlock_trip_count"}, SourceLocation{0, 0}};
+    struct_table_["RmsScheduler"] = StructSignature{"RmsScheduler", {}, {
+        {"max_tasks", Type{BaseTypeKind::I32, false, false}},
+        {"task_count", Type{BaseTypeKind::I32, false, false}},
+        {"total_utilization_bp", Type{BaseTypeKind::I32, false, false}},
+        {"is_schedulable", Type{BaseTypeKind::Bool, false, false}},
+        {"is_overloaded", Type{BaseTypeKind::Bool, false, false}}
+    }, {"max_tasks", "task_count", "total_utilization_bp", "is_schedulable", "is_overloaded"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2143,6 +2150,27 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "ColdGasAnchoringInterlock", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "RmsScheduler::new") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "RmsScheduler::new takes exactly 1 argument (max_tasks)");
+            } else {
+                Type t = check_expression(*call->arguments[0]);
+                if (t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "RmsScheduler parameter must be 'i32'");
+                }
+                int64_t max_t = 0;
+                bool b_max = extract_const_int(call->arguments[0].get(), max_t);
+                if (b_max && max_t <= 0) {
+                    emit_error(call->location, "invalid max_tasks (" + std::to_string(max_t) + "): must be positive");
+                }
+                if (b_max && max_t > 16) {
+                    emit_error(call->location, "invalid max_tasks (" + std::to_string(max_t) + "): cannot exceed 16 in bare-metal static allocation");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "RmsScheduler", false, false};
             return call->evaluated_type;
         }
 
@@ -4465,6 +4493,84 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "ColdGasAnchoringInterlock::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "ColdGasAnchoringInterlock__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "RmsScheduler") {
+            if (mc->method_name == "add_task") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "RmsScheduler::add_task takes exactly 3 arguments (task_id, period_us, wcet_us)");
+                } else {
+                    for (size_t i = 0; i < 3; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "RmsScheduler::add_task parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "RmsScheduler__add_task";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_schedulable") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "RmsScheduler::is_schedulable takes 0 arguments");
+                }
+                mc->resolved_callee = "RmsScheduler__is_schedulable";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_overloaded") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "RmsScheduler::is_overloaded takes 0 arguments");
+                }
+                mc->resolved_callee = "RmsScheduler__is_overloaded";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "total_utilization_basis_points") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "RmsScheduler::total_utilization_basis_points takes 0 arguments");
+                }
+                mc->resolved_callee = "RmsScheduler__total_utilization_basis_points";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "task_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "RmsScheduler::task_count takes 0 arguments");
+                }
+                mc->resolved_callee = "RmsScheduler__task_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "assigned_priority") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "RmsScheduler::assigned_priority takes exactly 1 argument (task_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "RmsScheduler::assigned_priority task_id parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "RmsScheduler__assigned_priority";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "RmsScheduler::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "RmsScheduler__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;

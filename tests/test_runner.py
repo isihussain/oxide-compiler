@@ -69,6 +69,7 @@ def run():
         ("examples/51_pathfinder_priority_ceiling.rs", 42, ["--profile=aerospace"]),
         ("examples/52_vikram_throttle_corridor.rs", 42, ["--profile=aerospace"]),
         ("examples/53_philae_anchoring_interlock.rs", 42, ["--profile=aerospace"]),
+        ("examples/54_rms_rate_monotonic_scheduler.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -234,6 +235,9 @@ def run():
         ("tests/ui/fail_anchoring_strain_negative.rs", "invalid min_gear_strain_n (-50): must be positive", []),
         ("tests/ui/fail_anchoring_penetration_zero.rs", "invalid min_surface_penetration_mm (0): must be positive", []),
         ("tests/ui/fail_anchoring_immutable_update.rs", "cannot borrow immutable local variable 'interlock' as mutable in method call", []),
+        ("tests/ui/fail_rms_tasks_zero.rs", "invalid max_tasks (0): must be positive", []),
+        ("tests/ui/fail_rms_tasks_excess.rs", "invalid max_tasks (32): cannot exceed 16 in bare-metal static allocation", []),
+        ("tests/ui/fail_rms_immutable_add.rs", "cannot borrow immutable local variable 'sched' as mutable in method call", []),
     ]
 
     for item in negative_tests:
