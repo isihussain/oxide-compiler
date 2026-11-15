@@ -242,6 +242,14 @@ void TypeChecker::register_structs() {
         {"runaway_interlock_tripped", Type{BaseTypeKind::Bool, false, false}},
         {"dump_burn_count", Type{BaseTypeKind::I32, false, false}}
     }, {"max_wheel_momentum_nms", "max_body_rate_cdps", "current_wheel_momentum_nms", "current_body_rate_cdps", "momentum_saturated", "thruster_dump_allowed", "runaway_interlock_tripped", "dump_burn_count"}, SourceLocation{0, 0}};
+    struct_table_["PriorityCeilingMutex"] = StructSignature{"PriorityCeilingMutex", {}, {
+        {"ceiling_priority", Type{BaseTypeKind::I32, false, false}},
+        {"is_locked", Type{BaseTypeKind::Bool, false, false}},
+        {"owner_task_id", Type{BaseTypeKind::I32, false, false}},
+        {"original_owner_priority", Type{BaseTypeKind::I32, false, false}},
+        {"boosted_priority", Type{BaseTypeKind::I32, false, false}},
+        {"inversion_prevented_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"ceiling_priority", "is_locked", "owner_task_id", "original_owner_priority", "boosted_priority", "inversion_prevented_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2042,6 +2050,24 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "MomentumWheelGuard", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "PriorityCeilingMutex::new") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "PriorityCeilingMutex::new takes exactly 1 argument (ceiling_priority)");
+            } else {
+                Type t = check_expression(*call->arguments[0]);
+                if (t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "PriorityCeilingMutex parameter must be 'i32'");
+                }
+                int64_t ceil_v = 0;
+                bool b_ceil = extract_const_int(call->arguments[0].get(), ceil_v);
+                if (b_ceil && ceil_v <= 0) {
+                    emit_error(call->location, "invalid ceiling_priority (" + std::to_string(ceil_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "PriorityCeilingMutex", false, false};
             return call->evaluated_type;
         }
 
@@ -4127,6 +4153,84 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "MomentumWheelGuard::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "MomentumWheelGuard__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "PriorityCeilingMutex") {
+            if (mc->method_name == "lock") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "PriorityCeilingMutex::lock takes exactly 2 arguments (task_id, task_priority)");
+                } else {
+                    for (size_t i = 0; i < 2; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "PriorityCeilingMutex::lock parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__lock";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "unlock") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "PriorityCeilingMutex::unlock takes exactly 1 argument (task_id)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "PriorityCeilingMutex::unlock parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__unlock";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_locked") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "PriorityCeilingMutex::is_locked takes 0 arguments");
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__is_locked";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "owner_task_id") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "PriorityCeilingMutex::owner_task_id takes 0 arguments");
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__owner_task_id";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "boosted_priority") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "PriorityCeilingMutex::boosted_priority takes 0 arguments");
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__boosted_priority";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "inversion_prevented_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "PriorityCeilingMutex::inversion_prevented_count takes 0 arguments");
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__inversion_prevented_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "PriorityCeilingMutex::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "PriorityCeilingMutex__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;

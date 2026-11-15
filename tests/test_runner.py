@@ -66,6 +66,7 @@ def run():
         ("examples/48_ariane5_bias_overflow.rs", 42, ["--profile=aerospace"]),
         ("examples/49_schiaparelli_descent_gate.rs", 42, ["--profile=aerospace"]),
         ("examples/50_hitomi_momentum_runaway.rs", 42, ["--profile=aerospace"]),
+        ("examples/51_pathfinder_priority_ceiling.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -220,6 +221,9 @@ def run():
         ("tests/ui/fail_momentum_max_negative.rs", "invalid max_wheel_momentum_nms (-1000): must be positive", []),
         ("tests/ui/fail_momentum_rate_zero.rs", "invalid max_body_rate_cdps (0): must be positive", []),
         ("tests/ui/fail_momentum_immutable_update.rs", "cannot borrow immutable local variable 'guard' as mutable in method call", []),
+        ("tests/ui/fail_ceiling_negative.rs", "invalid ceiling_priority (-5): must be positive", []),
+        ("tests/ui/fail_ceiling_zero.rs", "invalid ceiling_priority (0): must be positive", []),
+        ("tests/ui/fail_ceiling_immutable_lock.rs", "cannot borrow immutable local variable 'mutex' as mutable in method call", []),
     ]
 
     for item in negative_tests:
