@@ -277,6 +277,13 @@ void TypeChecker::register_structs() {
         {"is_schedulable", Type{BaseTypeKind::Bool, false, false}},
         {"is_overloaded", Type{BaseTypeKind::Bool, false, false}}
     }, {"max_tasks", "task_count", "total_utilization_bp", "is_schedulable", "is_overloaded"}, SourceLocation{0, 0}};
+    struct_table_["AtomicChannel"] = StructSignature{"AtomicChannel", {}, {
+        {"value", Type{BaseTypeKind::I32, false, false}},
+        {"sequence_number", Type{BaseTypeKind::I32, false, false}},
+        {"has_pending", Type{BaseTypeKind::Bool, false, false}},
+        {"overrun_count", Type{BaseTypeKind::I32, false, false}},
+        {"read_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"value", "sequence_number", "has_pending", "overrun_count", "read_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2171,6 +2178,14 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "RmsScheduler", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "AtomicChannel::new") {
+            if (!call->arguments.empty()) {
+                emit_error(call->location, "AtomicChannel::new takes 0 arguments");
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "AtomicChannel", false, false};
             return call->evaluated_type;
         }
 
@@ -4571,6 +4586,77 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "RmsScheduler::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "RmsScheduler__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "AtomicChannel") {
+            if (mc->method_name == "send") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "AtomicChannel::send takes exactly 1 argument (value)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "AtomicChannel::send parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "AtomicChannel__send";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "receive") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "AtomicChannel::receive takes 0 arguments");
+                }
+                mc->resolved_callee = "AtomicChannel__receive";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "has_pending") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "AtomicChannel::has_pending takes 0 arguments");
+                }
+                mc->resolved_callee = "AtomicChannel__has_pending";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "overrun_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "AtomicChannel::overrun_count takes 0 arguments");
+                }
+                mc->resolved_callee = "AtomicChannel__overrun_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "sequence_number") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "AtomicChannel::sequence_number takes 0 arguments");
+                }
+                mc->resolved_callee = "AtomicChannel__sequence_number";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "read_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "AtomicChannel::read_count takes 0 arguments");
+                }
+                mc->resolved_callee = "AtomicChannel__read_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "AtomicChannel::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "AtomicChannel__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;

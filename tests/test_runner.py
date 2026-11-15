@@ -70,6 +70,7 @@ def run():
         ("examples/52_vikram_throttle_corridor.rs", 42, ["--profile=aerospace"]),
         ("examples/53_philae_anchoring_interlock.rs", 42, ["--profile=aerospace"]),
         ("examples/54_rms_rate_monotonic_scheduler.rs", 42, ["--profile=aerospace"]),
+        ("examples/55_baremetal_atomic_isr_channel.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -238,6 +239,9 @@ def run():
         ("tests/ui/fail_rms_tasks_zero.rs", "invalid max_tasks (0): must be positive", []),
         ("tests/ui/fail_rms_tasks_excess.rs", "invalid max_tasks (32): cannot exceed 16 in bare-metal static allocation", []),
         ("tests/ui/fail_rms_immutable_add.rs", "cannot borrow immutable local variable 'sched' as mutable in method call", []),
+        ("tests/ui/fail_atomic_channel_new_args.rs", "AtomicChannel::new takes 0 arguments", []),
+        ("tests/ui/fail_atomic_channel_immutable_send.rs", "cannot borrow immutable local variable 'ch' as mutable in method call", []),
+        ("tests/ui/fail_atomic_channel_send_type_mismatch.rs", "AtomicChannel::send parameter must be 'i32'", []),
     ]
 
     for item in negative_tests:
