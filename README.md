@@ -6,7 +6,7 @@ An independent, open-source compiler for the Rust programming language implement
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![Target](https://img.shields.io/badge/Target-Baremetal%20%7C%20Freestanding%20C99-brightgreen.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-214%2F214%20Passing-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-220%2F220%20Passing-success.svg)]()
 
 <p align="center">
   <img src="assets/demo.svg" alt="Oxide Aerospace Flight Software Verification" width="100%">
@@ -64,6 +64,7 @@ flowchart TD
 * **Bit-Packed Telemetry & CRC Engine (`include/ast.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Supports zero-padding packed structures (`#[repr(packed)]`) and binary frame serialization (`TelemetryPacket`) for RF space links. Automatically computes and verifies IEEE 802.3 CRC-32 integrity checksums with immediate invariant assertion traps under `--profile=aerospace`.
 * **MIL-STD-1553B Dual-Redundant Bus Framer (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Implements standard multiplex data bus command, status, and data word validation for spacecraft and avionics networks. Enforces remote terminal (RT 0-31) addressing constraints, subaddress codes, and word count bounds; automatically executes dual-bus channel failover (Bus A to Bus B) when message retry limits are exceeded under `--profile=aerospace`.
 * **SpaceWire Network Router (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Models ECSS-E-ST-50-12C spacecraft onboard network routing. Statically validates logical node addressing (32-254) and link transmission rates (2-200 Mbps); detects link parity/disconnect faults and executes state-machine recovery under `--profile=aerospace`.
+* **SECDED Radiation Memory Scrubber (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Implements Single Error Correction and Double Error Detection (SECDED Hamming codes) for aerospace SRAM protection against cosmic radiation Single Event Upsets (SEU). Automatically calculates syndrome vectors, transparently repairs single-bit upsets on the fly, and trips uncorrectable double-bit fault traps under `--profile=aerospace`.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations, algebraic identity simplifications ($x+0, x-0, x\times 1, x\times 0, x/1$), double negation elimination, dead code elimination following early returns, constant-bounded loop unrolling (trip count $\le 8$), dead loop pruning, and pure leaf function inline expansion.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
@@ -243,8 +244,13 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_spacewire_immutable_route.rs (correctly rejected)
 [PASS] fail_spacewire_dest_out_of_bounds.rs (correctly rejected)
 [PASS] fail_spacewire_payload_excess.rs (correctly rejected)
+[PASS] fail_scrubber_invalid_words.rs (correctly rejected)
+[PASS] fail_scrubber_excess_words.rs (correctly rejected)
+[PASS] fail_scrubber_invalid_interval.rs (correctly rejected)
+[PASS] fail_scrubber_interval_excess.rs (correctly rejected)
+[PASS] fail_scrubber_immutable_scrub.rs (correctly rejected)
 ==================================================
-Results: 214/214 tests passed.
+Results: 220/220 tests passed.
 ```
 
 ---
@@ -331,10 +337,10 @@ Results: 214/214 tests passed.
   - [x] Static Rate-Monotonic Scheduling (RMS) schedulability verifier and task table (`RmsScheduler`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Lock-free zero-allocation ISR atomic communication channels (`AtomicChannel`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Freestanding bare-metal code generator and linker scripts (`--target=baremetal`, `--emit-linker-script`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
-- [ ] **Milestone 14: Aerospace Data Buses & Hardware Memory Protection**
+- [x] **Milestone 14: Aerospace Data Buses & Hardware Memory Protection**
   - [x] MIL-STD-1553B dual-redundant flight bus framer and channel failover (`MilStd1553Bus`; [RT-Thread](https://github.com/RT-Thread/rt-thread) and [NASA cFS](https://github.com/nasa/cFS) inspired)
   - [x] SpaceWire (ECSS-E-ST-50-12C) packet router and autonomous link recovery (`SpaceWireRouter`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
-  - [ ] SECDED radiation memory scrubber and bitflip repair (`MemoryScrubber`)
+  - [x] SECDED radiation memory scrubber and bitflip repair (`MemoryScrubber`; [NASA cFS](https://github.com/nasa/cFS) and [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
 
 ---
 

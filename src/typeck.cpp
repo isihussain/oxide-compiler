@@ -301,6 +301,13 @@ void TypeChecker::register_structs() {
         {"routed_count", Type{BaseTypeKind::I32, false, false}},
         {"reconnect_count", Type{BaseTypeKind::I32, false, false}}
     }, {"node_address", "link_speed_mbps", "link_state", "error_count", "routed_count", "reconnect_count"}, SourceLocation{0, 0}};
+    struct_table_["MemoryScrubber"] = StructSignature{"MemoryScrubber", {}, {
+        {"block_words", Type{BaseTypeKind::I32, false, false}},
+        {"scrub_interval_ms", Type{BaseTypeKind::I32, false, false}},
+        {"corrected_count", Type{BaseTypeKind::I32, false, false}},
+        {"double_fault_count", Type{BaseTypeKind::I32, false, false}},
+        {"scrubbed_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"block_words", "scrub_interval_ms", "corrected_count", "double_fault_count", "scrubbed_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2249,6 +2256,29 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "SpaceWireRouter", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "MemoryScrubber::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "MemoryScrubber::new takes exactly 2 arguments (block_words, scrub_interval_ms)");
+            } else {
+                Type t0 = check_expression(*call->arguments[0]);
+                Type t1 = check_expression(*call->arguments[1]);
+                if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                    emit_error(call->location, "MemoryScrubber::new parameters must be 'i32'");
+                }
+                int64_t words = 0, interval = 0;
+                bool b_words = extract_const_int(call->arguments[0].get(), words);
+                bool b_interval = extract_const_int(call->arguments[1].get(), interval);
+                if (b_words && (words < 1 || words > 1024)) {
+                    emit_error(call->arguments[0]->location, "MemoryScrubber::new block_words must be between 1 and 1024");
+                }
+                if (b_interval && (interval < 1 || interval > 60000)) {
+                    emit_error(call->arguments[1]->location, "MemoryScrubber::new scrub_interval_ms must be between 1 and 60000");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "MemoryScrubber", false, false};
             return call->evaluated_type;
         }
 
@@ -4950,6 +4980,91 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "SpaceWireRouter::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "SpaceWireRouter__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "MemoryScrubber") {
+            if (mc->method_name == "encode_word") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "MemoryScrubber::encode_word takes exactly 1 argument (raw_word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "MemoryScrubber::encode_word parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "MemoryScrubber__encode_word";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "scrub_word") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "MemoryScrubber::scrub_word takes exactly 1 argument (received_word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "MemoryScrubber::scrub_word parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "MemoryScrubber__scrub_word";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "corrected_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MemoryScrubber::corrected_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MemoryScrubber__corrected_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "double_fault_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MemoryScrubber::double_fault_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MemoryScrubber__double_fault_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "scrubbed_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MemoryScrubber::scrubbed_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MemoryScrubber__scrubbed_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "block_words") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MemoryScrubber::block_words takes 0 arguments");
+                }
+                mc->resolved_callee = "MemoryScrubber__block_words";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "scrub_interval_ms") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MemoryScrubber::scrub_interval_ms takes 0 arguments");
+                }
+                mc->resolved_callee = "MemoryScrubber__scrub_interval_ms";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset_metrics") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MemoryScrubber::reset_metrics takes 0 arguments");
+                }
+                mc->resolved_callee = "MemoryScrubber__reset_metrics";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;

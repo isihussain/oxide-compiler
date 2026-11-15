@@ -74,6 +74,7 @@ def run():
         ("examples/56_baremetal_freestanding_guidance.rs", 42, ["--target=baremetal", "--profile=aerospace"]),
         ("examples/57_milstd1553b_flight_bus.rs", 42, ["--profile=aerospace"]),
         ("examples/58_spacewire_packet_routing.rs", 42, ["--profile=aerospace"]),
+        ("examples/59_secded_memory_scrubber.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -256,6 +257,11 @@ def run():
         ("tests/ui/fail_spacewire_immutable_route.rs", "cannot borrow immutable local variable 'router' as mutable in method call", []),
         ("tests/ui/fail_spacewire_dest_out_of_bounds.rs", "SpaceWireRouter::route_packet dest_addr must be between 32 and 254", []),
         ("tests/ui/fail_spacewire_payload_excess.rs", "SpaceWireRouter::route_packet payload_bytes must be between 1 and 1024", []),
+        ("tests/ui/fail_scrubber_invalid_words.rs", "MemoryScrubber::new block_words must be between 1 and 1024", []),
+        ("tests/ui/fail_scrubber_excess_words.rs", "MemoryScrubber::new block_words must be between 1 and 1024", []),
+        ("tests/ui/fail_scrubber_invalid_interval.rs", "MemoryScrubber::new scrub_interval_ms must be between 1 and 60000", []),
+        ("tests/ui/fail_scrubber_interval_excess.rs", "MemoryScrubber::new scrub_interval_ms must be between 1 and 60000", []),
+        ("tests/ui/fail_scrubber_immutable_scrub.rs", "cannot borrow immutable local variable 'scrubber' as mutable in method call", []),
     ]
 
     for item in negative_tests:
