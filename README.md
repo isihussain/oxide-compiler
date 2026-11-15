@@ -2,6 +2,16 @@
 
 An independent, open-source compiler for the Rust programming language implemented from scratch in C++20.
 
+[![CI](https://github.com/isihussain/oxide-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/isihussain/oxide-compiler/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![Target](https://img.shields.io/badge/Target-Baremetal%20%7C%20Freestanding%20C99-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-202%2F202%20Passing-success.svg)]()
+
+<p align="center">
+  <img src="assets/demo.svg" alt="Oxide Aerospace Flight Software Verification" width="100%">
+</p>
+
 Oxide provides an alternative implementation of the Rust language frontend, type checker, borrow checker, and code generator. It does not depend on `rustc` or LLVM libraries for its core pipeline, emitting clean C99 for target code generation to maintain portability and eliminate circular bootstrapping dependencies.
 
 ---
@@ -54,6 +64,19 @@ flowchart TD
 * **Bit-Packed Telemetry & CRC Engine (`include/ast.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Supports zero-padding packed structures (`#[repr(packed)]`) and binary frame serialization (`TelemetryPacket`) for RF space links. Automatically computes and verifies IEEE 802.3 CRC-32 integrity checksums with immediate invariant assertion traps under `--profile=aerospace`.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations, algebraic identity simplifications ($x+0, x-0, x\times 1, x\times 0, x/1$), double negation elimination, dead code elimination following early returns, constant-bounded loop unrolling (trip count $\le 8$), dead loop pruning, and pure leaf function inline expansion.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
+
+---
+
+## Architectural Comparison: Oxide vs Traditional RTOS / C Avionics
+
+| Aerospace Capability / Safety Domain | Traditional C / RTOS Architecture (e.g., RT-Thread, FreeRTOS) | Oxide Compiler Static Verification (`--profile=aerospace`) |
+| :--- | :--- | :--- |
+| **RMS Schedulability** | Manual priority tuning at runtime; undetected deadline overruns under high CPU loads. | Static Liu & Layland bound checking ($U \le n(2^{1/n}-1)$); rejects unschedulable task sets at compile time (`RmsScheduler`). |
+| **ISR & Core Concurrency** | Manual mutexes or binary semaphores; risk of priority inversion or interrupt deadlocks. | Lock-free single-ownership ISR channels (`AtomicChannel`) enforced by borrow checker with acquire/release memory fences. |
+| **Sensor Saturation & Overflow** | Unchecked cast from 64-bit float to 16-bit integer (Ariane 501); unchecked Doppler velocity divergence (Schiaparelli). | Hardware checked arithmetic traps (`BiasOverflowGuard`) and statistical innovation bounds (`DescentKalmanGate`). |
+| **Heap & Recursion Safety** | Developer discipline or external lint tools; risk of runtime out-of-memory kernel aborts. | Strict compile-time bans on dynamic heap allocation (`malloc`/`free`) and recursion (NASA/JPL Flight Rules 1, 2, 3). |
+| **Vehicle Mass Invariants** | Unverified telemetry thresholds; risk of vehicle dry mass breach or negative propellant burns. | Physical mass conservation verification (`StageMass`); guarantees $m_{\text{total}} \ge m_{\text{dry}}$ across all flight burns. |
+| **Bare-Metal Deployment** | Heavy C runtime (`libc`) dependencies or board-support code modifications. | Freestanding ISO C99 emission (`--target=baremetal`), hardware fault trap lowering, and automated GNU LD linker scripts. |
 
 ---
 

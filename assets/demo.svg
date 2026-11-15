@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 440" width="100%" height="100%">
+  <defs>
+    <style>
+      .window-bg { fill: #0d1117; stroke: #30363d; stroke-width: 1; rx: 10px; }
+      .header-bg { fill: #161b22; stroke: #30363d; stroke-width: 1; rx: 10px; }
+      .header-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #8b949e; text-anchor: middle; font-weight: 500; }
+      .terminal-text { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 13px; fill: #e6edf3; }
+      .c-prompt { fill: #79c0ff; font-weight: bold; }
+      .c-cmd { fill: #f0f6fc; }
+      .c-header { fill: #58a6ff; font-weight: bold; }
+      .c-check { fill: #3fb950; font-weight: bold; }
+      .c-info { fill: #d2a8ff; }
+      .c-warn { fill: #d29922; }
+      .c-success { fill: #3fb950; font-weight: bold; }
+      .c-dim { fill: #8b949e; }
+      
+      .line { opacity: 0; animation-duration: 12s; animation-iteration-count: infinite; animation-fill-mode: forwards; }
+      .l1 { animation-name: anim-l1; }
+      .l2 { animation-name: anim-l2; }
+      .l3 { animation-name: anim-l3; }
+      .l4 { animation-name: anim-l4; }
+      .l5 { animation-name: anim-l5; }
+      .l6 { animation-name: anim-l6; }
+      .l7 { animation-name: anim-l7; }
+      .l8 { animation-name: anim-l8; }
+      .l9 { animation-name: anim-l9; }
+      .l10 { animation-name: anim-l10; }
+      .cursor { animation: anim-cursor 0.8s infinite; fill: #58a6ff; }
+
+      @keyframes anim-l1 { 0%, 2% { opacity: 0; } 4%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l2 { 0%, 10% { opacity: 0; } 12%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l3 { 0%, 18% { opacity: 0; } 20%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l4 { 0%, 26% { opacity: 0; } 28%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l5 { 0%, 34% { opacity: 0; } 36%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l6 { 0%, 42% { opacity: 0; } 44%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l7 { 0%, 50% { opacity: 0; } 52%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l8 { 0%, 58% { opacity: 0; } 60%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l9 { 0%, 67% { opacity: 0; } 69%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-l10 { 0%, 75% { opacity: 0; } 77%, 93% { opacity: 1; } 96%, 100% { opacity: 0; } }
+      @keyframes anim-cursor { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    </style>
+  </defs>
+
+  <!-- Window Container -->
+  <rect x="1" y="1" width="838" height="438" class="window-bg" />
+  
+  <!-- Window Header -->
+  <path d="M 1 11 A 10 10 0 0 1 11 1 L 829 1 A 10 10 0 0 1 839 11 L 839 38 L 1 38 Z" class="header-bg" />
+  <circle cx="20" cy="19" r="6" fill="#ff5f56" />
+  <circle cx="38" cy="19" r="6" fill="#ffbd2e" />
+  <circle cx="56" cy="19" r="6" fill="#27c93f" />
+  <text x="420" y="24" class="header-title">oxide — flight-software-verification — 840x440</text>
+
+  <!-- Terminal Content -->
+  <g class="terminal-text" xml:space="preserve">
+    <!-- Line 1: Command -->
+    <g class="line l1">
+      <text x="24" y="72"><tspan class="c-prompt">flight-eng@avionics</tspan><tspan class="c-dim">:</tspan><tspan class="c-info">~/guidance</tspan><tspan class="c-dim">$</tspan> <tspan class="c-cmd">oxide --profile=aerospace --target=baremetal -o flight_guidance src/main.rs</tspan></text>
+    </g>
+
+    <!-- Line 2: Compiler Banner -->
+    <g class="line l2">
+      <text x="24" y="102"><tspan class="c-header">[Oxide Aerospace Verifier v0.13.0]</tspan> <tspan class="c-dim">Target: baremetal (freestanding C99)</tspan></text>
+    </g>
+
+    <!-- Line 3: RMS Scheduler Check -->
+    <g class="line l3">
+      <text x="24" y="132"><tspan class="c-check">  ✔</tspan> <tspan>RmsScheduler: static CPU utilization </tspan><tspan class="c-info">68.4% &lt;= 77.9%</tspan><tspan class="c-dim"> (Liu &amp; Layland bound for 3 tasks)</tspan></text>
+    </g>
+
+    <!-- Line 4: Lock-free ISR Channel -->
+    <g class="line l4">
+      <text x="24" y="162"><tspan class="c-check">  ✔</tspan> <tspan>AtomicChannel: lock-free zero-allocation ISR channel verified </tspan><tspan class="c-dim">(0 data races)</tspan></text>
+    </g>
+
+    <!-- Line 5: Mission Safeguards -->
+    <g class="line l5">
+      <text x="24" y="192"><tspan class="c-check">  ✔</tspan> <tspan>Mission Safeguards: BiasOverflowGuard &amp; DescentKalmanGate active </tspan><tspan class="c-dim">(0 overflow/saturation traps)</tspan></text>
+    </g>
+
+    <!-- Line 6: Invariants -->
+    <g class="line l6">
+      <text x="24" y="222"><tspan class="c-check">  ✔</tspan> <tspan>StageMass: dry-mass lower bound invariant hold </tspan><tspan class="c-info">(m_total &gt;= m_dry, 42000 kg &gt;= 4200 kg)</tspan></text>
+    </g>
+
+    <!-- Line 7: Freestanding C99 -->
+    <g class="line l7">
+      <text x="24" y="252"><tspan class="c-check">  ✔</tspan> <tspan>Freestanding C99: 0 hosted libc dependencies </tspan><tspan class="c-dim">(&lt;stdio.h&gt;, &lt;stdlib.h&gt; stripped; traps lowered)</tspan></text>
+    </g>
+
+    <!-- Line 8: Linker Script -->
+    <g class="line l8">
+      <text x="24" y="282"><tspan class="c-check">  ✔</tspan> <tspan>Linker script generated: </tspan><tspan class="c-warn">FLASH (512K @ 0x08000000)</tspan><tspan class="c-dim">, </tspan><tspan class="c-warn">SRAM (128K @ 0x20000000)</tspan></text>
+    </g>
+
+    <!-- Line 9: Execution -->
+    <g class="line l9">
+      <text x="24" y="324"><tspan class="c-prompt">flight-eng@avionics</tspan><tspan class="c-dim">:</tspan><tspan class="c-info">~/guidance</tspan><tspan class="c-dim">$</tspan> <tspan class="c-cmd">./flight_guidance</tspan></text>
+    </g>
+
+    <!-- Line 10: Flight Status -->
+    <g class="line l10">
+      <text x="24" y="354"><tspan class="c-success">[FLIGHT OK]</tspan> <tspan>Avionics guidance loop nominal. Attitude rate telemetry verified. (exit: 42)</tspan></text>
+      <text x="24" y="394"><tspan class="c-prompt">flight-eng@avionics</tspan><tspan class="c-dim">:</tspan><tspan class="c-info">~/guidance</tspan><tspan class="c-dim">$</tspan> <tspan class="cursor">█</tspan></text>
+    </g>
+  </g>
+</svg>
