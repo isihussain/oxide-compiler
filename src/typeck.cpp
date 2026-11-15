@@ -293,6 +293,14 @@ void TypeChecker::register_structs() {
         {"last_status", Type{BaseTypeKind::I32, false, false}},
         {"command_count", Type{BaseTypeKind::I32, false, false}}
     }, {"primary_channel", "active_channel", "max_retries", "retry_count", "failover_count", "last_status", "command_count"}, SourceLocation{0, 0}};
+    struct_table_["SpaceWireRouter"] = StructSignature{"SpaceWireRouter", {}, {
+        {"node_address", Type{BaseTypeKind::I32, false, false}},
+        {"link_speed_mbps", Type{BaseTypeKind::I32, false, false}},
+        {"link_state", Type{BaseTypeKind::I32, false, false}},
+        {"error_count", Type{BaseTypeKind::I32, false, false}},
+        {"routed_count", Type{BaseTypeKind::I32, false, false}},
+        {"reconnect_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"node_address", "link_speed_mbps", "link_state", "error_count", "routed_count", "reconnect_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2218,6 +2226,29 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "MilStd1553Bus", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "SpaceWireRouter::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "SpaceWireRouter::new takes exactly 2 arguments (node_address, link_speed_mbps)");
+            } else {
+                Type t0 = check_expression(*call->arguments[0]);
+                Type t1 = check_expression(*call->arguments[1]);
+                if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                    emit_error(call->location, "SpaceWireRouter::new parameters must be 'i32'");
+                }
+                int64_t addr = 0, speed = 0;
+                bool b_addr = extract_const_int(call->arguments[0].get(), addr);
+                bool b_speed = extract_const_int(call->arguments[1].get(), speed);
+                if (b_addr && (addr < 32 || addr > 254)) {
+                    emit_error(call->arguments[0]->location, "SpaceWireRouter::new node_address must be a logical address between 32 and 254");
+                }
+                if (b_speed && (speed < 2 || speed > 200)) {
+                    emit_error(call->arguments[1]->location, "SpaceWireRouter::new link_speed_mbps must be between 2 and 200");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "SpaceWireRouter", false, false};
             return call->evaluated_type;
         }
 
@@ -4804,6 +4835,121 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "MilStd1553Bus::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "MilStd1553Bus__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "SpaceWireRouter") {
+            if (mc->method_name == "route_packet") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "SpaceWireRouter::route_packet takes exactly 3 arguments (dest_addr, protocol_id, payload_bytes)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32 || t2.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "SpaceWireRouter::route_packet arguments must be 'i32'");
+                    }
+                    int64_t dest = 0, proto = 0, payload = 0;
+                    if (extract_const_int(mc->arguments[0].get(), dest) && (dest < 32 || dest > 254)) {
+                        emit_error(mc->arguments[0]->location, "SpaceWireRouter::route_packet dest_addr must be between 32 and 254");
+                    }
+                    if (extract_const_int(mc->arguments[1].get(), proto) && (proto < 1 || proto > 255)) {
+                        emit_error(mc->arguments[1]->location, "SpaceWireRouter::route_packet protocol_id must be between 1 and 255");
+                    }
+                    if (extract_const_int(mc->arguments[2].get(), payload) && (payload < 1 || payload > 1024)) {
+                        emit_error(mc->arguments[2]->location, "SpaceWireRouter::route_packet payload_bytes must be between 1 and 1024");
+                    }
+                }
+                mc->resolved_callee = "SpaceWireRouter__route_packet";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "report_link_error") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "SpaceWireRouter::report_link_error takes exactly 1 argument (error_code)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "SpaceWireRouter::report_link_error parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "SpaceWireRouter__report_link_error";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reconnect") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::reconnect takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__reconnect";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "link_state") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::link_state takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__link_state";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "error_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::error_count takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__error_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "routed_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::routed_count takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__routed_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reconnect_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::reconnect_count takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__reconnect_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "node_address") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::node_address takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__node_address";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "link_speed_mbps") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::link_speed_mbps takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__link_speed_mbps";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "SpaceWireRouter::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "SpaceWireRouter__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
