@@ -199,7 +199,7 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_tailrec_not_tail_pos.rs (correctly rejected)
 [PASS] fail_tailrec_no_recursion.rs (correctly rejected)
 ==================================================
-Results: 188/188 tests passed.
+Results: 192/192 tests passed.
 ```
 
 ---
@@ -275,13 +275,13 @@ Results: 188/188 tests passed.
   - [x] Static detection and diagnostic rejection of non-tail recursion and non-recursive annotations
   - [x] Lowering of tail-recursive self-calls to iterative parameter reassignments and jumps ($O(1)$ stack space)
   - [x] Exemption of verified tail-recursive functions from NASA/JPL Rule 3 recursion bans under `--profile=aerospace`
-- [ ] **Milestone 12: International Space Mission Incidents & Flight Safeguards (ESA, JAXA, NASA, ISRO)**
+- [x] **Milestone 12: International Space Mission Incidents & Flight Safeguards (ESA, JAXA, NASA, ISRO)**
   - [x] Ariane 501 horizontal bias numerical overflow guard (Ariane 501 SRI alignment failure mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Schiaparelli Mars lander Doppler altimeter saturation and Kalman consistency gate (ExoMars premature parachute jettison mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] JAXA Hitomi (ASTRO-H) satellite momentum dump runaway and thruster rate interlock (ASTRO-H breakup mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Mars Pathfinder priority ceiling mutex and starvation guard (NASA Pathfinder priority inversion mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] ISRO Chandrayaan-2 Vikram descent throttle corridor and closed-loop throttling guard (Vikram hard landing mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
-  - [ ] Rosetta / Philae comet landing dual-corroboration cold-gas thruster and anchor harpoon interlock (Philae bounce mitigation)
+  - [x] Rosetta / Philae comet landing dual-corroboration cold-gas thruster and anchor harpoon interlock (Philae bounce mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
 
 ---
 

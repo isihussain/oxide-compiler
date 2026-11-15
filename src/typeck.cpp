@@ -259,6 +259,17 @@ void TypeChecker::register_structs() {
         {"is_flameout_risk", Type{BaseTypeKind::Bool, false, false}},
         {"clamped_count", Type{BaseTypeKind::I32, false, false}}
     }, {"min_throttle_percent", "max_throttle_percent", "max_slew_rate_percent_per_sec", "current_throttle_percent", "is_clamped", "is_flameout_risk", "clamped_count"}, SourceLocation{0, 0}};
+    struct_table_["ColdGasAnchoringInterlock"] = StructSignature{"ColdGasAnchoringInterlock", {}, {
+        {"min_gear_strain_n", Type{BaseTypeKind::I32, false, false}},
+        {"min_surface_penetration_mm", Type{BaseTypeKind::I32, false, false}},
+        {"current_gear_strain_n", Type{BaseTypeKind::I32, false, false}},
+        {"current_penetration_mm", Type{BaseTypeKind::I32, false, false}},
+        {"is_corroborated", Type{BaseTypeKind::Bool, false, false}},
+        {"is_thruster_armed", Type{BaseTypeKind::Bool, false, false}},
+        {"is_harpoon_fired", Type{BaseTypeKind::Bool, false, false}},
+        {"is_bounce_mitigation_active", Type{BaseTypeKind::Bool, false, false}},
+        {"interlock_trip_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"min_gear_strain_n", "min_surface_penetration_mm", "current_gear_strain_n", "current_penetration_mm", "is_corroborated", "is_thruster_armed", "is_harpoon_fired", "is_bounce_mitigation_active", "interlock_trip_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2108,6 +2119,30 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "ThrustThrottleCorridor", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "ColdGasAnchoringInterlock::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "ColdGasAnchoringInterlock::new takes exactly 2 arguments (min_gear_strain_n, min_surface_penetration_mm)");
+            } else {
+                for (size_t i = 0; i < 2; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "ColdGasAnchoringInterlock parameter must be 'i32'");
+                    }
+                }
+                int64_t strain = 0, penetr = 0;
+                bool b_strain = extract_const_int(call->arguments[0].get(), strain);
+                bool b_penetr = extract_const_int(call->arguments[1].get(), penetr);
+                if (b_strain && strain <= 0) {
+                    emit_error(call->location, "invalid min_gear_strain_n (" + std::to_string(strain) + "): must be positive");
+                }
+                if (b_penetr && penetr <= 0) {
+                    emit_error(call->location, "invalid min_surface_penetration_mm (" + std::to_string(penetr) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "ColdGasAnchoringInterlock", false, false};
             return call->evaluated_type;
         }
 
@@ -4335,6 +4370,101 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "ThrustThrottleCorridor::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "ThrustThrottleCorridor__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "ColdGasAnchoringInterlock") {
+            if (mc->method_name == "evaluate_touchdown") {
+                if (mc->arguments.size() != 4) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::evaluate_touchdown takes exactly 4 arguments (gear_strain_n, surface_penetration_mm, thruster_firing_requested, harpoon_fire_commanded)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    Type t3 = check_expression(*mc->arguments[3]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "ColdGasAnchoringInterlock::evaluate_touchdown strain and penetration parameters must be 'i32'");
+                    }
+                    if (t2.kind != BaseTypeKind::Bool || t3.kind != BaseTypeKind::Bool) {
+                        emit_error(mc->location, "ColdGasAnchoringInterlock::evaluate_touchdown thruster and harpoon command flags must be 'bool'");
+                    }
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__evaluate_touchdown";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_corroborated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::is_corroborated takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__is_corroborated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_thruster_armed") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::is_thruster_armed takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__is_thruster_armed";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_harpoon_fired") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::is_harpoon_fired takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__is_harpoon_fired";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_bounce_mitigation_active") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::is_bounce_mitigation_active takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__is_bounce_mitigation_active";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "interlock_trip_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::interlock_trip_count takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__interlock_trip_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_gear_strain_n") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::current_gear_strain_n takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__current_gear_strain_n";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_penetration_mm") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::current_penetration_mm takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__current_penetration_mm";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ColdGasAnchoringInterlock::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "ColdGasAnchoringInterlock__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
