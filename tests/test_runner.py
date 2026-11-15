@@ -64,6 +64,7 @@ def run():
         ("examples/46_relational_identities_and_self_simplification.rs", 42, []),
         ("examples/47_bitwise_and_modulo.rs", 42, []),
         ("examples/48_ariane5_bias_overflow.rs", 42, ["--profile=aerospace"]),
+        ("examples/49_schiaparelli_descent_gate.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -212,6 +213,9 @@ def run():
         ("tests/ui/fail_bias_max_negative.rs", "invalid max_bias_value (-100): must be positive", []),
         ("tests/ui/fail_bias_max_zero.rs", "invalid max_bias_value (0): must be positive", []),
         ("tests/ui/fail_bias_immutable_update.rs", "cannot borrow immutable local variable 'guard' as mutable in method call", []),
+        ("tests/ui/fail_kalman_rate_negative.rs", "invalid max_angular_rate_dps (-100): must be positive", []),
+        ("tests/ui/fail_kalman_divergence_zero.rs", "invalid max_divergence_m (0): must be positive", []),
+        ("tests/ui/fail_kalman_immutable_update.rs", "cannot borrow immutable local variable 'gate' as mutable in method call", []),
     ]
 
     for item in negative_tests:

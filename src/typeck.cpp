@@ -223,6 +223,15 @@ void TypeChecker::register_structs() {
         {"backup_sri_engaged", Type{BaseTypeKind::Bool, false, false}},
         {"valid_sample_count", Type{BaseTypeKind::I32, false, false}}
     }, {"max_bias_value", "current_bias_scaled", "overflow_detected", "backup_sri_engaged", "valid_sample_count"}, SourceLocation{0, 0}};
+    struct_table_["DescentKalmanGate"] = StructSignature{"DescentKalmanGate", {}, {
+        {"max_angular_rate_dps", Type{BaseTypeKind::I32, false, false}},
+        {"max_divergence_m", Type{BaseTypeKind::I32, false, false}},
+        {"current_altitude_m", Type{BaseTypeKind::I32, false, false}},
+        {"imu_rate_saturated", Type{BaseTypeKind::Bool, false, false}},
+        {"altitude_divergence_detected", Type{BaseTypeKind::Bool, false, false}},
+        {"parachute_jettison_blocked", Type{BaseTypeKind::Bool, false, false}},
+        {"valid_sample_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"max_angular_rate_dps", "max_divergence_m", "current_altitude_m", "imu_rate_saturated", "altitude_divergence_detected", "parachute_jettison_blocked", "valid_sample_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1973,6 +1982,31 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "BiasOverflowGuard", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "DescentKalmanGate::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "DescentKalmanGate::new takes exactly 2 arguments (max_angular_rate_dps, max_divergence_m)");
+            } else {
+                for (size_t i = 0; i < 2; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "DescentKalmanGate parameters must be 'i32'");
+                    }
+                }
+                int64_t rate_v = 0, div_v = 0;
+                bool b_rate = extract_const_int(call->arguments[0].get(), rate_v);
+                bool b_div = extract_const_int(call->arguments[1].get(), div_v);
+
+                if (b_rate && rate_v <= 0) {
+                    emit_error(call->location, "invalid max_angular_rate_dps (" + std::to_string(rate_v) + "): must be positive");
+                }
+                if (b_div && div_v <= 0) {
+                    emit_error(call->location, "invalid max_divergence_m (" + std::to_string(div_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "DescentKalmanGate", false, false};
             return call->evaluated_type;
         }
 
@@ -3900,6 +3934,79 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "BiasOverflowGuard::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "BiasOverflowGuard__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "DescentKalmanGate") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "DescentKalmanGate::update takes exactly 3 arguments (imu_rate_dps, radar_alt_m, integrated_alt_m)");
+                } else {
+                    for (size_t i = 0; i < 3; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "DescentKalmanGate::update parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "DescentKalmanGate__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_imu_saturated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "DescentKalmanGate::is_imu_saturated takes 0 arguments");
+                }
+                mc->resolved_callee = "DescentKalmanGate__is_imu_saturated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_divergence_detected") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "DescentKalmanGate::is_divergence_detected takes 0 arguments");
+                }
+                mc->resolved_callee = "DescentKalmanGate__is_divergence_detected";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_jettison_blocked") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "DescentKalmanGate::is_jettison_blocked takes 0 arguments");
+                }
+                mc->resolved_callee = "DescentKalmanGate__is_jettison_blocked";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_altitude_m") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "DescentKalmanGate::current_altitude_m takes 0 arguments");
+                }
+                mc->resolved_callee = "DescentKalmanGate__current_altitude_m";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "valid_sample_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "DescentKalmanGate::valid_sample_count takes 0 arguments");
+                }
+                mc->resolved_callee = "DescentKalmanGate__valid_sample_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "DescentKalmanGate::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "DescentKalmanGate__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
