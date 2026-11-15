@@ -67,6 +67,7 @@ def run():
         ("examples/49_schiaparelli_descent_gate.rs", 42, ["--profile=aerospace"]),
         ("examples/50_hitomi_momentum_runaway.rs", 42, ["--profile=aerospace"]),
         ("examples/51_pathfinder_priority_ceiling.rs", 42, ["--profile=aerospace"]),
+        ("examples/52_vikram_throttle_corridor.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -224,6 +225,11 @@ def run():
         ("tests/ui/fail_ceiling_negative.rs", "invalid ceiling_priority (-5): must be positive", []),
         ("tests/ui/fail_ceiling_zero.rs", "invalid ceiling_priority (0): must be positive", []),
         ("tests/ui/fail_ceiling_immutable_lock.rs", "cannot borrow immutable local variable 'mutex' as mutable in method call", []),
+        ("tests/ui/fail_throttle_min_negative.rs", "invalid min_throttle_percent (-10): must be positive", []),
+        ("tests/ui/fail_throttle_max_excess.rs", "invalid max_throttle_percent (120): cannot exceed 100", []),
+        ("tests/ui/fail_throttle_bounds_inverted.rs", "invalid throttle bounds: min_throttle_percent (80) > max_throttle_percent (50)", []),
+        ("tests/ui/fail_throttle_slew_zero.rs", "invalid max_slew_rate_percent_per_sec (0): must be positive", []),
+        ("tests/ui/fail_throttle_immutable_update.rs", "cannot borrow immutable local variable 'corridor' as mutable in method call", []),
     ]
 
     for item in negative_tests:

@@ -199,7 +199,7 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_tailrec_not_tail_pos.rs (correctly rejected)
 [PASS] fail_tailrec_no_recursion.rs (correctly rejected)
 ==================================================
-Results: 182/182 tests passed.
+Results: 188/188 tests passed.
 ```
 
 ---
@@ -280,7 +280,7 @@ Results: 182/182 tests passed.
   - [x] Schiaparelli Mars lander Doppler altimeter saturation and Kalman consistency gate (ExoMars premature parachute jettison mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] JAXA Hitomi (ASTRO-H) satellite momentum dump runaway and thruster rate interlock (ASTRO-H breakup mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Mars Pathfinder priority ceiling mutex and starvation guard (NASA Pathfinder priority inversion mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
-  - [ ] ISRO Chandrayaan-2 Vikram descent throttle corridor and closed-loop throttling guard (Vikram hard landing mitigation)
+  - [x] ISRO Chandrayaan-2 Vikram descent throttle corridor and closed-loop throttling guard (Vikram hard landing mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [ ] Rosetta / Philae comet landing dual-corroboration cold-gas thruster and anchor harpoon interlock (Philae bounce mitigation)
 
 ---

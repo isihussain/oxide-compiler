@@ -250,6 +250,15 @@ void TypeChecker::register_structs() {
         {"boosted_priority", Type{BaseTypeKind::I32, false, false}},
         {"inversion_prevented_count", Type{BaseTypeKind::I32, false, false}}
     }, {"ceiling_priority", "is_locked", "owner_task_id", "original_owner_priority", "boosted_priority", "inversion_prevented_count"}, SourceLocation{0, 0}};
+    struct_table_["ThrustThrottleCorridor"] = StructSignature{"ThrustThrottleCorridor", {}, {
+        {"min_throttle_percent", Type{BaseTypeKind::I32, false, false}},
+        {"max_throttle_percent", Type{BaseTypeKind::I32, false, false}},
+        {"max_slew_rate_percent_per_sec", Type{BaseTypeKind::I32, false, false}},
+        {"current_throttle_percent", Type{BaseTypeKind::I32, false, false}},
+        {"is_clamped", Type{BaseTypeKind::Bool, false, false}},
+        {"is_flameout_risk", Type{BaseTypeKind::Bool, false, false}},
+        {"clamped_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"min_throttle_percent", "max_throttle_percent", "max_slew_rate_percent_per_sec", "current_throttle_percent", "is_clamped", "is_flameout_risk", "clamped_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2068,6 +2077,37 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "PriorityCeilingMutex", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "ThrustThrottleCorridor::new") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "ThrustThrottleCorridor::new takes exactly 3 arguments (min_throttle_percent, max_throttle_percent, max_slew_rate_percent_per_sec)");
+            } else {
+                for (size_t i = 0; i < 3; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "ThrustThrottleCorridor parameter must be 'i32'");
+                    }
+                }
+                int64_t min_th = 0, max_th = 0, slew = 0;
+                bool b_min = extract_const_int(call->arguments[0].get(), min_th);
+                bool b_max = extract_const_int(call->arguments[1].get(), max_th);
+                bool b_slew = extract_const_int(call->arguments[2].get(), slew);
+                if (b_min && min_th <= 0) {
+                    emit_error(call->location, "invalid min_throttle_percent (" + std::to_string(min_th) + "): must be positive");
+                }
+                if (b_max && max_th > 100) {
+                    emit_error(call->location, "invalid max_throttle_percent (" + std::to_string(max_th) + "): cannot exceed 100");
+                }
+                if (b_min && b_max && min_th > max_th) {
+                    emit_error(call->location, "invalid throttle bounds: min_throttle_percent (" + std::to_string(min_th) + ") > max_throttle_percent (" + std::to_string(max_th) + ")");
+                }
+                if (b_slew && slew <= 0) {
+                    emit_error(call->location, "invalid max_slew_rate_percent_per_sec (" + std::to_string(slew) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "ThrustThrottleCorridor", false, false};
             return call->evaluated_type;
         }
 
@@ -4231,6 +4271,70 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "PriorityCeilingMutex::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "PriorityCeilingMutex__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "ThrustThrottleCorridor") {
+            if (mc->method_name == "command_throttle") {
+                if (mc->arguments.size() != 2) {
+                    emit_error(mc->location, "ThrustThrottleCorridor::command_throttle takes exactly 2 arguments (requested_percent, dt_ms)");
+                } else {
+                    for (size_t i = 0; i < 2; ++i) {
+                        Type t = check_expression(*mc->arguments[i]);
+                        if (t.kind != BaseTypeKind::I32) {
+                            emit_error(mc->arguments[i]->location, "ThrustThrottleCorridor::command_throttle parameters must be 'i32'");
+                        }
+                    }
+                }
+                mc->resolved_callee = "ThrustThrottleCorridor__command_throttle";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_throttle") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ThrustThrottleCorridor::current_throttle takes 0 arguments");
+                }
+                mc->resolved_callee = "ThrustThrottleCorridor__current_throttle";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_clamped") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ThrustThrottleCorridor::is_clamped takes 0 arguments");
+                }
+                mc->resolved_callee = "ThrustThrottleCorridor__is_clamped";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_flameout_risk") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ThrustThrottleCorridor::is_flameout_risk takes 0 arguments");
+                }
+                mc->resolved_callee = "ThrustThrottleCorridor__is_flameout_risk";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "clamped_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ThrustThrottleCorridor::clamped_count takes 0 arguments");
+                }
+                mc->resolved_callee = "ThrustThrottleCorridor__clamped_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "ThrustThrottleCorridor::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "ThrustThrottleCorridor__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
