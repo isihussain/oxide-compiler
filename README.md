@@ -104,6 +104,15 @@ echo $? # Output: 42
 ./bin/oxide --profile=aerospace -o bin/flight_guidance examples/09_aerospace_profile.rs
 ```
 
+### 6. Compiling for Freestanding Bare-Metal Targets & Emitting Linker Scripts
+```bash
+# Generate GNU LD compatible linker script for embedded flight targets
+./bin/oxide --emit-linker-script=flight_memory.ld
+
+# Compile with freestanding C99 runtime and hardware trap lowering
+./bin/oxide --target=baremetal --profile=aerospace -o bin/avionics_firmware examples/56_baremetal_freestanding_guidance.rs
+```
+
 ---
 
 ## Running the Conformance Test Suite
@@ -198,8 +207,9 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_mmio_missing_barrier.rs (correctly rejected)
 [PASS] fail_tailrec_not_tail_pos.rs (correctly rejected)
 [PASS] fail_tailrec_no_recursion.rs (correctly rejected)
+[PASS] fail_target_unsupported.rs (correctly rejected)
 ==================================================
-Results: 200/200 tests passed.
+Results: 202/202 tests passed.
 ```
 
 ---
@@ -282,10 +292,10 @@ Results: 200/200 tests passed.
   - [x] Mars Pathfinder priority ceiling mutex and starvation guard (NASA Pathfinder priority inversion mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] ISRO Chandrayaan-2 Vikram descent throttle corridor and closed-loop throttling guard (Vikram hard landing mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Rosetta / Philae comet landing dual-corroboration cold-gas thruster and anchor harpoon interlock (Philae bounce mitigation; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
-- [ ] **Milestone 13: Bare-Metal Avionics & Real-Time RMS Scheduling**
+- [x] **Milestone 13: Bare-Metal Avionics & Real-Time RMS Scheduling**
   - [x] Static Rate-Monotonic Scheduling (RMS) schedulability verifier and task table (`RmsScheduler`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Lock-free zero-allocation ISR atomic communication channels (`AtomicChannel`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
-  - [ ] Freestanding bare-metal code generator and linker scripts (`--target=baremetal`)
+  - [x] Freestanding bare-metal code generator and linker scripts (`--target=baremetal`, `--emit-linker-script`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
 
 ---
 

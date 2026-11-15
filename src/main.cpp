@@ -33,13 +33,15 @@ void print_usage(const char* prog) {
     std::cout << "Oxide - Independent Rust Compiler with Aerospace Safety Engine\n"
               << "Usage: " << prog << " [options] <input.rs>\n\n"
               << "Options:\n"
-              << "  -o <file>             Compile to executable binary (via host C toolchain)\n"
-              << "  --emit-ast            Dump the Abstract Syntax Tree (AST)\n"
-              << "  --emit-c              Output generated C99 code\n"
-              << "  --check               Run type checking and borrow checking only\n"
-              << "  --profile=aerospace   Enable safety-critical verification and checked arithmetic\n"
-              << "  -v, --version         Display compiler version\n"
-              << "  -h, --help            Display this help message\n";
+              << "  -o <file>                     Compile to executable binary (via host C toolchain)\n"
+              << "  --emit-ast                    Dump the Abstract Syntax Tree (AST)\n"
+              << "  --emit-c                      Output generated C99 code\n"
+              << "  --check                       Run type checking and borrow checking only\n"
+              << "  --profile=aerospace           Enable safety-critical verification and checked arithmetic\n"
+              << "  --target=<target>             Select target architecture (baremetal, hosted [default])\n"
+              << "  --emit-linker-script[=<file>] Emit GNU LD bare-metal linker script (FLASH/SRAM layout)\n"
+              << "  -v, --version                 Display compiler version\n"
+              << "  -h, --help                    Display this help message\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -54,6 +56,9 @@ int main(int argc, char* argv[]) {
     bool emit_c = false;
     bool check_only = false;
     bool aerospace_profile = false;
+    bool target_baremetal = false;
+    bool emit_linker_script = false;
+    std::string emit_linker_script_path;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -71,6 +76,37 @@ int main(int argc, char* argv[]) {
             check_only = true;
         } else if (arg == "--profile=aerospace") {
             aerospace_profile = true;
+        } else if (arg == "--target=baremetal") {
+            target_baremetal = true;
+        } else if (arg == "--target=hosted") {
+            target_baremetal = false;
+        } else if (arg.rfind("--target=", 0) == 0) {
+            std::string tgt = arg.substr(9);
+            std::cerr << "oxide: error: unsupported target '" << tgt << "'. Supported targets: baremetal, hosted\n";
+            return 1;
+        } else if (arg == "--target") {
+            if (i + 1 < argc) {
+                std::string tgt = argv[++i];
+                if (tgt == "baremetal") {
+                    target_baremetal = true;
+                } else if (tgt == "hosted") {
+                    target_baremetal = false;
+                } else {
+                    std::cerr << "oxide: error: unsupported target '" << tgt << "'. Supported targets: baremetal, hosted\n";
+                    return 1;
+                }
+            } else {
+                std::cerr << "oxide: error: missing target after '--target'\n";
+                return 1;
+            }
+        } else if (arg.rfind("--emit-linker-script=", 0) == 0) {
+            emit_linker_script = true;
+            emit_linker_script_path = arg.substr(std::string("--emit-linker-script=").size());
+        } else if (arg == "--emit-linker-script") {
+            emit_linker_script = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-' && std::string(argv[i + 1]).rfind(".ld") != std::string::npos) {
+                emit_linker_script_path = argv[++i];
+            }
         } else if (arg == "-o") {
             if (i + 1 < argc) {
                 output_bin = argv[++i];
@@ -84,6 +120,34 @@ int main(int argc, char* argv[]) {
         } else {
             input_path = arg;
         }
+    }
+
+    if (emit_linker_script && input_path.empty()) {
+        std::string script = oxide::CCodeGenerator::generate_linker_script();
+        if (emit_linker_script_path.empty()) {
+            std::cout << script;
+        } else {
+            std::ofstream ld_out(emit_linker_script_path);
+            if (!ld_out.is_open()) {
+                std::cerr << "oxide: error: cannot write linker script: " << emit_linker_script_path << "\n";
+                return 1;
+            }
+            ld_out << script;
+            ld_out.close();
+            std::cout << "oxide: emitted linker script to '" << emit_linker_script_path << "'.\n";
+        }
+        return 0;
+    }
+
+    if (emit_linker_script && !emit_linker_script_path.empty()) {
+        std::ofstream ld_out(emit_linker_script_path);
+        if (!ld_out.is_open()) {
+            std::cerr << "oxide: error: cannot write linker script: " << emit_linker_script_path << "\n";
+            return 1;
+        }
+        ld_out << oxide::CCodeGenerator::generate_linker_script();
+        ld_out.close();
+        std::cout << "oxide: emitted linker script to '" << emit_linker_script_path << "'.\n";
     }
 
     if (input_path.empty()) {
@@ -169,7 +233,7 @@ int main(int argc, char* argv[]) {
     }
 
     // 8. Code Generation (C99)
-    oxide::CCodeGenerator codegen(*program, aerospace_profile);
+    oxide::CCodeGenerator codegen(*program, aerospace_profile, target_baremetal);
     std::string c_code = codegen.generate();
 
     if (emit_c && output_bin.empty()) {
@@ -188,7 +252,12 @@ int main(int argc, char* argv[]) {
     c_out.close();
 
     if (!output_bin.empty()) {
-        std::string compile_cmd = "clang -std=c99 -O2 \"" + c_file_path + "\" -o \"" + output_bin + "\" -lm";
+        std::string compile_cmd;
+        if (target_baremetal) {
+            compile_cmd = "clang -std=c99 -ffreestanding -O2 \"" + c_file_path + "\" -o \"" + output_bin + "\"";
+        } else {
+            compile_cmd = "clang -std=c99 -O2 \"" + c_file_path + "\" -o \"" + output_bin + "\" -lm";
+        }
         int res = std::system(compile_cmd.c_str());
         if (res != 0) {
             std::cerr << "oxide: backend compilation error (exit code " << res << ")\n";

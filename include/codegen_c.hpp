@@ -20,8 +20,9 @@ namespace oxide {
  */
 class CCodeGenerator {
 public:
-    explicit CCodeGenerator(const Program& program, bool aerospace_profile = false);
+    explicit CCodeGenerator(const Program& program, bool aerospace_profile = false, bool target_baremetal = false);
     std::string generate();
+    static std::string generate_linker_script();
 
 private:
     void emit_includes();
@@ -43,6 +44,7 @@ private:
 
     const Program& program_;
     bool aerospace_profile_ = false;
+    bool target_baremetal_ = false;
     std::stringstream out_;
     int indent_level_ = 0;
     int match_counter_ = 0;

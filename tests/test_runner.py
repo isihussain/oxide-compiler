@@ -71,6 +71,7 @@ def run():
         ("examples/53_philae_anchoring_interlock.rs", 42, ["--profile=aerospace"]),
         ("examples/54_rms_rate_monotonic_scheduler.rs", 42, ["--profile=aerospace"]),
         ("examples/55_baremetal_atomic_isr_channel.rs", 42, ["--profile=aerospace"]),
+        ("examples/56_baremetal_freestanding_guidance.rs", 42, ["--target=baremetal", "--profile=aerospace"]),
     ]
 
     passed = 0
@@ -242,6 +243,7 @@ def run():
         ("tests/ui/fail_atomic_channel_new_args.rs", "AtomicChannel::new takes 0 arguments", []),
         ("tests/ui/fail_atomic_channel_immutable_send.rs", "cannot borrow immutable local variable 'ch' as mutable in method call", []),
         ("tests/ui/fail_atomic_channel_send_type_mismatch.rs", "AtomicChannel::send parameter must be 'i32'", []),
+        ("tests/ui/fail_target_unsupported.rs", "unsupported target 'wasm32'. Supported targets: baremetal, hosted", ["--target=wasm32"]),
     ]
 
     for item in negative_tests:
