@@ -284,6 +284,15 @@ void TypeChecker::register_structs() {
         {"overrun_count", Type{BaseTypeKind::I32, false, false}},
         {"read_count", Type{BaseTypeKind::I32, false, false}}
     }, {"value", "sequence_number", "has_pending", "overrun_count", "read_count"}, SourceLocation{0, 0}};
+    struct_table_["MilStd1553Bus"] = StructSignature{"MilStd1553Bus", {}, {
+        {"primary_channel", Type{BaseTypeKind::I32, false, false}},
+        {"active_channel", Type{BaseTypeKind::I32, false, false}},
+        {"max_retries", Type{BaseTypeKind::I32, false, false}},
+        {"retry_count", Type{BaseTypeKind::I32, false, false}},
+        {"failover_count", Type{BaseTypeKind::I32, false, false}},
+        {"last_status", Type{BaseTypeKind::I32, false, false}},
+        {"command_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"primary_channel", "active_channel", "max_retries", "retry_count", "failover_count", "last_status", "command_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2186,6 +2195,29 @@ Type TypeChecker::check_expression(Expression& expr) {
                 emit_error(call->location, "AtomicChannel::new takes 0 arguments");
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "AtomicChannel", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "MilStd1553Bus::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "MilStd1553Bus::new takes exactly 2 arguments (primary_channel, max_retries)");
+            } else {
+                Type t0 = check_expression(*call->arguments[0]);
+                Type t1 = check_expression(*call->arguments[1]);
+                if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                    emit_error(call->location, "MilStd1553Bus::new parameters must be 'i32'");
+                }
+                int64_t chan = 0, retries = 0;
+                bool b_chan = extract_const_int(call->arguments[0].get(), chan);
+                bool b_retries = extract_const_int(call->arguments[1].get(), retries);
+                if (b_chan && (chan != 0 && chan != 1)) {
+                    emit_error(call->arguments[0]->location, "MilStd1553Bus::new primary_channel must be 0 (Bus A) or 1 (Bus B)");
+                }
+                if (b_retries && (retries <= 0 || retries > 5)) {
+                    emit_error(call->arguments[1]->location, "MilStd1553Bus::new max_retries must be between 1 and 5");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "MilStd1553Bus", false, false};
             return call->evaluated_type;
         }
 
@@ -4657,6 +4689,121 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "AtomicChannel::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "AtomicChannel__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "MilStd1553Bus") {
+            if (mc->method_name == "send_command") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "MilStd1553Bus::send_command takes exactly 3 arguments (rt_address, subaddress, word_count)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32 || t2.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "MilStd1553Bus::send_command arguments must be 'i32'");
+                    }
+                    int64_t rt = 0, sub = 0, wc = 0;
+                    if (extract_const_int(mc->arguments[0].get(), rt) && (rt < 0 || rt > 31)) {
+                        emit_error(mc->arguments[0]->location, "MilStd1553Bus::send_command rt_address must be between 0 and 31");
+                    }
+                    if (extract_const_int(mc->arguments[1].get(), sub) && (sub < 0 || sub > 31)) {
+                        emit_error(mc->arguments[1]->location, "MilStd1553Bus::send_command subaddress must be between 0 and 31");
+                    }
+                    if (extract_const_int(mc->arguments[2].get(), wc) && (wc < 1 || wc > 32)) {
+                        emit_error(mc->arguments[2]->location, "MilStd1553Bus::send_command word_count must be between 1 and 32");
+                    }
+                }
+                mc->resolved_callee = "MilStd1553Bus__send_command";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "receive_status") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "MilStd1553Bus::receive_status takes exactly 1 argument (status_flags)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "MilStd1553Bus::receive_status parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "MilStd1553Bus__receive_status";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "active_channel") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MilStd1553Bus::active_channel takes 0 arguments");
+                }
+                mc->resolved_callee = "MilStd1553Bus__active_channel";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "failover_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MilStd1553Bus::failover_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MilStd1553Bus__failover_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "retry_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MilStd1553Bus::retry_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MilStd1553Bus__retry_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "command_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MilStd1553Bus::command_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MilStd1553Bus__command_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "last_status") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MilStd1553Bus::last_status takes 0 arguments");
+                }
+                mc->resolved_callee = "MilStd1553Bus__last_status";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "switch_channel") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "MilStd1553Bus::switch_channel takes exactly 1 argument (target_channel)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "MilStd1553Bus::switch_channel parameter must be 'i32'");
+                    }
+                    int64_t tc = 0;
+                    if (extract_const_int(mc->arguments[0].get(), tc) && (tc != 0 && tc != 1)) {
+                        emit_error(mc->arguments[0]->location, "MilStd1553Bus::switch_channel target_channel must be 0 (Bus A) or 1 (Bus B)");
+                    }
+                }
+                mc->resolved_callee = "MilStd1553Bus__switch_channel";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MilStd1553Bus::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "MilStd1553Bus__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;

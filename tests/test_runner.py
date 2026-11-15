@@ -72,6 +72,7 @@ def run():
         ("examples/54_rms_rate_monotonic_scheduler.rs", 42, ["--profile=aerospace"]),
         ("examples/55_baremetal_atomic_isr_channel.rs", 42, ["--profile=aerospace"]),
         ("examples/56_baremetal_freestanding_guidance.rs", 42, ["--target=baremetal", "--profile=aerospace"]),
+        ("examples/57_milstd1553b_flight_bus.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -244,6 +245,11 @@ def run():
         ("tests/ui/fail_atomic_channel_immutable_send.rs", "cannot borrow immutable local variable 'ch' as mutable in method call", []),
         ("tests/ui/fail_atomic_channel_send_type_mismatch.rs", "AtomicChannel::send parameter must be 'i32'", []),
         ("tests/ui/fail_target_unsupported.rs", "unsupported target 'wasm32'. Supported targets: baremetal, hosted", ["--target=wasm32"]),
+        ("tests/ui/fail_milstd1553_invalid_channel.rs", "MilStd1553Bus::new primary_channel must be 0 (Bus A) or 1 (Bus B)", []),
+        ("tests/ui/fail_milstd1553_invalid_retries.rs", "MilStd1553Bus::new max_retries must be between 1 and 5", []),
+        ("tests/ui/fail_milstd1553_immutable_send.rs", "cannot borrow immutable local variable 'bus' as mutable in method call", []),
+        ("tests/ui/fail_milstd1553_rt_out_of_bounds.rs", "MilStd1553Bus::send_command rt_address must be between 0 and 31", []),
+        ("tests/ui/fail_milstd1553_word_count_zero.rs", "MilStd1553Bus::send_command word_count must be between 1 and 32", []),
     ]
 
     for item in negative_tests:
