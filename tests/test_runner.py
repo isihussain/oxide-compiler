@@ -63,6 +63,7 @@ def run():
         ("examples/45_tail_call_optimization.rs", 42, ["--profile=aerospace"]),
         ("examples/46_relational_identities_and_self_simplification.rs", 42, []),
         ("examples/47_bitwise_and_modulo.rs", 42, []),
+        ("examples/48_ariane5_bias_overflow.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -208,6 +209,9 @@ def run():
         ("tests/ui/fail_modulo_type_mismatch.rs", "mismatched types in modulo operation", []),
         ("tests/ui/fail_bitwise_type_mismatch.rs", "mismatched types in bitwise operation", []),
         ("tests/ui/fail_logical_type_mismatch.rs", "mismatched types in logical operation: operands must be 'bool'", []),
+        ("tests/ui/fail_bias_max_negative.rs", "invalid max_bias_value (-100): must be positive", []),
+        ("tests/ui/fail_bias_max_zero.rs", "invalid max_bias_value (0): must be positive", []),
+        ("tests/ui/fail_bias_immutable_update.rs", "cannot borrow immutable local variable 'guard' as mutable in method call", []),
     ]
 
     for item in negative_tests:

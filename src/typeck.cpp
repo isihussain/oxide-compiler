@@ -216,6 +216,13 @@ void TypeChecker::register_structs() {
         {"engine_cutoff_commanded", Type{BaseTypeKind::Bool, false, false}},
         {"premature_shutdown_blocked", Type{BaseTypeKind::Bool, false, false}}
     }, {"max_touchdown_alt_cm", "min_wow_force_n", "radar_alt_cm", "wow_force_n", "touchdown_confirmed", "engine_cutoff_commanded", "premature_shutdown_blocked"}, SourceLocation{0, 0}};
+    struct_table_["BiasOverflowGuard"] = StructSignature{"BiasOverflowGuard", {}, {
+        {"max_bias_value", Type{BaseTypeKind::I32, false, false}},
+        {"current_bias_scaled", Type{BaseTypeKind::I32, false, false}},
+        {"overflow_detected", Type{BaseTypeKind::Bool, false, false}},
+        {"backup_sri_engaged", Type{BaseTypeKind::Bool, false, false}},
+        {"valid_sample_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"max_bias_value", "current_bias_scaled", "overflow_detected", "backup_sri_engaged", "valid_sample_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -1948,6 +1955,24 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "TouchdownInterlock", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "BiasOverflowGuard::new") {
+            if (call->arguments.size() != 1) {
+                emit_error(call->location, "BiasOverflowGuard::new takes exactly 1 argument (max_bias_value)");
+            } else {
+                Type t = check_expression(*call->arguments[0]);
+                if (t.kind != BaseTypeKind::I32) {
+                    emit_error(call->arguments[0]->location, "BiasOverflowGuard parameter must be 'i32'");
+                }
+                int64_t max_v = 0;
+                bool b_max = extract_const_int(call->arguments[0].get(), max_v);
+                if (b_max && max_v <= 0) {
+                    emit_error(call->location, "invalid max_bias_value (" + std::to_string(max_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "BiasOverflowGuard", false, false};
             return call->evaluated_type;
         }
 
@@ -3813,6 +3838,68 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "TouchdownInterlock::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "TouchdownInterlock__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "BiasOverflowGuard") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "BiasOverflowGuard::update takes exactly 1 argument (raw_bias_fp_scaled)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "BiasOverflowGuard::update parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "BiasOverflowGuard__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_overflow_detected") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "BiasOverflowGuard::is_overflow_detected takes 0 arguments");
+                }
+                mc->resolved_callee = "BiasOverflowGuard__is_overflow_detected";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_backup_engaged") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "BiasOverflowGuard::is_backup_engaged takes 0 arguments");
+                }
+                mc->resolved_callee = "BiasOverflowGuard__is_backup_engaged";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_bias_scaled") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "BiasOverflowGuard::current_bias_scaled takes 0 arguments");
+                }
+                mc->resolved_callee = "BiasOverflowGuard__current_bias_scaled";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "valid_sample_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "BiasOverflowGuard::valid_sample_count takes 0 arguments");
+                }
+                mc->resolved_callee = "BiasOverflowGuard__valid_sample_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "BiasOverflowGuard::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "BiasOverflowGuard__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
