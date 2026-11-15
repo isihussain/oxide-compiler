@@ -232,6 +232,16 @@ void TypeChecker::register_structs() {
         {"parachute_jettison_blocked", Type{BaseTypeKind::Bool, false, false}},
         {"valid_sample_count", Type{BaseTypeKind::I32, false, false}}
     }, {"max_angular_rate_dps", "max_divergence_m", "current_altitude_m", "imu_rate_saturated", "altitude_divergence_detected", "parachute_jettison_blocked", "valid_sample_count"}, SourceLocation{0, 0}};
+    struct_table_["MomentumWheelGuard"] = StructSignature{"MomentumWheelGuard", {}, {
+        {"max_wheel_momentum_nms", Type{BaseTypeKind::I32, false, false}},
+        {"max_body_rate_cdps", Type{BaseTypeKind::I32, false, false}},
+        {"current_wheel_momentum_nms", Type{BaseTypeKind::I32, false, false}},
+        {"current_body_rate_cdps", Type{BaseTypeKind::I32, false, false}},
+        {"momentum_saturated", Type{BaseTypeKind::Bool, false, false}},
+        {"thruster_dump_allowed", Type{BaseTypeKind::Bool, false, false}},
+        {"runaway_interlock_tripped", Type{BaseTypeKind::Bool, false, false}},
+        {"dump_burn_count", Type{BaseTypeKind::I32, false, false}}
+    }, {"max_wheel_momentum_nms", "max_body_rate_cdps", "current_wheel_momentum_nms", "current_body_rate_cdps", "momentum_saturated", "thruster_dump_allowed", "runaway_interlock_tripped", "dump_burn_count"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2007,6 +2017,31 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "DescentKalmanGate", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "MomentumWheelGuard::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "MomentumWheelGuard::new takes exactly 2 arguments (max_wheel_momentum_nms, max_body_rate_cdps)");
+            } else {
+                for (size_t i = 0; i < 2; ++i) {
+                    Type t = check_expression(*call->arguments[i]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(call->arguments[i]->location, "MomentumWheelGuard parameters must be 'i32'");
+                    }
+                }
+                int64_t mom_v = 0, rate_v = 0;
+                bool b_mom = extract_const_int(call->arguments[0].get(), mom_v);
+                bool b_rate = extract_const_int(call->arguments[1].get(), rate_v);
+
+                if (b_mom && mom_v <= 0) {
+                    emit_error(call->location, "invalid max_wheel_momentum_nms (" + std::to_string(mom_v) + "): must be positive");
+                }
+                if (b_rate && rate_v <= 0) {
+                    emit_error(call->location, "invalid max_body_rate_cdps (" + std::to_string(rate_v) + "): must be positive");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "MomentumWheelGuard", false, false};
             return call->evaluated_type;
         }
 
@@ -4007,6 +4042,91 @@ Type TypeChecker::check_expression(Expression& expr) {
                     emit_error(mc->location, "DescentKalmanGate::reset takes 0 arguments");
                 }
                 mc->resolved_callee = "DescentKalmanGate__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "MomentumWheelGuard") {
+            if (mc->method_name == "update") {
+                if (mc->arguments.size() != 3) {
+                    emit_error(mc->location, "MomentumWheelGuard::update takes exactly 3 arguments (wheel_momentum_nms, body_rate_cdps, dump_commanded)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "MomentumWheelGuard::update momentum and body_rate parameters must be 'i32'");
+                    }
+                    if (t2.kind != BaseTypeKind::Bool) {
+                        emit_error(mc->arguments[2]->location, "MomentumWheelGuard::update dump_commanded parameter must be 'bool'");
+                    }
+                }
+                mc->resolved_callee = "MomentumWheelGuard__update";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_momentum_saturated") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::is_momentum_saturated takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__is_momentum_saturated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_dump_allowed") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::is_dump_allowed takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__is_dump_allowed";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_runaway_tripped") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::is_runaway_tripped takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__is_runaway_tripped";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_wheel_momentum_nms") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::current_wheel_momentum_nms takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__current_wheel_momentum_nms";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "current_body_rate_cdps") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::current_body_rate_cdps takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__current_body_rate_cdps";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "dump_burn_count") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::dump_burn_count takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__dump_burn_count";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "MomentumWheelGuard::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "MomentumWheelGuard__reset";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
