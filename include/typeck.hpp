@@ -17,6 +17,7 @@ struct FunctionSignature {
     std::vector<Type> param_types;
     Type return_type;
     SourceLocation location;
+    const Function* ast_func = nullptr;
 };
 
 /**
@@ -123,6 +124,7 @@ struct MethodSignature {
     Type return_type;
     std::optional<std::string> trait_name;
     SourceLocation location;
+    const Function* ast_func = nullptr;
 };
 
 /**

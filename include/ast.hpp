@@ -443,6 +443,47 @@ struct LetStmt : public Statement {
         return std::nullopt;
     }
 
+    std::vector<std::string> get_requires_contracts() const {
+        std::vector<std::string> reqs;
+        for (const auto& a : attributes) {
+            if (a.rfind("requires(", 0) == 0 && a.back() == ')') {
+                reqs.push_back(a.substr(9, a.size() - 10));
+            }
+        }
+        return reqs;
+    }
+
+    std::vector<std::string> get_ensures_contracts() const {
+        std::vector<std::string> ens;
+        for (const auto& a : attributes) {
+            if (a.rfind("ensures(", 0) == 0 && a.back() == ')') {
+                ens.push_back(a.substr(8, a.size() - 9));
+            }
+        }
+        return ens;
+    }
+
+    std::optional<int64_t> get_max_stack_bytes() const {
+        for (const auto& a : attributes) {
+            if (a.rfind("max_stack_bytes(", 0) == 0 && a.back() == ')') {
+                std::string val_str = a.substr(16, a.size() - 17);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+            size_t pos = a.find("max_stack_bytes=");
+            if (pos != std::string::npos) {
+                size_t start = pos + 16;
+                size_t end = a.find_first_of("),", start);
+                std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+        }
+        return std::nullopt;
+    }
+
     LetStmt(std::string name, bool is_mut, Type type, std::unique_ptr<Expression> init, SourceLocation loc)
         : var_name(std::move(name)), is_mutable(is_mut), declared_type(type), initializer(std::move(init)) { location = loc; }
     void dump(int indent = 0) const override;
@@ -526,6 +567,47 @@ struct Function : public ASTNode {
             if (a.rfind("max_complexity(", 0) == 0) {
                 size_t start = 15;
                 size_t end = a.find(")", start);
+                std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::vector<std::string> get_requires_contracts() const {
+        std::vector<std::string> reqs;
+        for (const auto& a : attributes) {
+            if (a.rfind("requires(", 0) == 0 && a.back() == ')') {
+                reqs.push_back(a.substr(9, a.size() - 10));
+            }
+        }
+        return reqs;
+    }
+
+    std::vector<std::string> get_ensures_contracts() const {
+        std::vector<std::string> ens;
+        for (const auto& a : attributes) {
+            if (a.rfind("ensures(", 0) == 0 && a.back() == ')') {
+                ens.push_back(a.substr(8, a.size() - 9));
+            }
+        }
+        return ens;
+    }
+
+    std::optional<int64_t> get_max_stack_bytes() const {
+        for (const auto& a : attributes) {
+            if (a.rfind("max_stack_bytes(", 0) == 0 && a.back() == ')') {
+                std::string val_str = a.substr(16, a.size() - 17);
+                try {
+                    return std::stoll(val_str);
+                } catch (...) {}
+            }
+            size_t pos = a.find("max_stack_bytes=");
+            if (pos != std::string::npos) {
+                size_t start = pos + 16;
+                size_t end = a.find_first_of("),", start);
                 std::string val_str = a.substr(start, end == std::string::npos ? end : end - start);
                 try {
                     return std::stoll(val_str);

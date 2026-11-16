@@ -2706,6 +2706,7 @@ void CCodeGenerator::emit_forward_declarations() {
 }
 
 void CCodeGenerator::emit_function(const Function& fn) {
+    current_function_ = &fn;
     if (fn.has_attribute("tmr")) {
         // Emit triplicated implementation function
         indent();
@@ -2762,6 +2763,7 @@ void CCodeGenerator::emit_function(const Function& fn) {
         indent_level_--;
         line("}");
         line();
+        current_function_ = nullptr;
         return;
     }
 
@@ -2783,6 +2785,7 @@ void CCodeGenerator::emit_function(const Function& fn) {
         indent_level_--;
         line("}");
         line();
+        current_function_ = nullptr;
         return;
     }
 
@@ -2799,6 +2802,7 @@ void CCodeGenerator::emit_function(const Function& fn) {
     out_ << ") ";
     emit_block(*fn.body, true, fn.name == "main");
     line();
+    current_function_ = nullptr;
 }
 
 bool CCodeGenerator::try_emit_tail_call(const Expression& expr, const Function& fn) {
@@ -2918,6 +2922,12 @@ void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body, b
         line("__oxide_enable_aerospace_ftz();");
     }
 
+    if (is_function_body && current_function_) {
+        for (const auto& req : current_function_->get_requires_contracts()) {
+            line("if (!(" + req + ")) { __OXIDE_TRAP_MSG(\"AEROSPACE TRAP: #[requires] precondition violated in " + current_function_->name + "\"); }");
+        }
+    }
+
     for (const auto& stmt : block.statements) {
         emit_statement(*stmt);
     }
@@ -2950,12 +2960,32 @@ void CCodeGenerator::emit_block(const BlockExpr& block, bool is_function_body, b
                 out_ << ";\n";
             }
         } else {
-            indent();
-            if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
-                out_ << "return ";
+            if (is_function_body && current_function_ && !current_function_->get_ensures_contracts().empty()) {
+                if (block.evaluated_type.kind != BaseTypeKind::Unit) {
+                    indent();
+                    out_ << map_type(current_function_->return_type) << " result = ";
+                    emit_expression(*block.trailing_expr);
+                    out_ << ";\n";
+                    for (const auto& ens : current_function_->get_ensures_contracts()) {
+                        line("if (!(" + ens + ")) { __OXIDE_TRAP_MSG(\"AEROSPACE TRAP: #[ensures] postcondition violated in " + current_function_->name + "\"); }");
+                    }
+                    line("return result;");
+                } else {
+                    indent();
+                    emit_expression(*block.trailing_expr);
+                    out_ << ";\n";
+                    for (const auto& ens : current_function_->get_ensures_contracts()) {
+                        line("if (!(" + ens + ")) { __OXIDE_TRAP_MSG(\"AEROSPACE TRAP: #[ensures] postcondition violated in " + current_function_->name + "\"); }");
+                    }
+                }
+            } else {
+                indent();
+                if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
+                    out_ << "return ";
+                }
+                emit_expression(*block.trailing_expr);
+                out_ << ";\n";
             }
-            emit_expression(*block.trailing_expr);
-            out_ << ";\n";
         }
     } else if (is_function_body && block.evaluated_type.kind != BaseTypeKind::Unit) {
         bool ends_with_return = false;
@@ -3028,6 +3058,26 @@ void CCodeGenerator::emit_statement(const Statement& stmt) {
                 emit_block(*block, false);
                 out_ << "\n";
                 return;
+            }
+            if (auto* ret = dynamic_cast<const ReturnExpr*>(expr_stmt->expr.get())) {
+                if (current_function_ && !current_function_->get_ensures_contracts().empty()) {
+                    if (ret->value) {
+                        indent();
+                        out_ << map_type(current_function_->return_type) << " result = ";
+                        emit_expression(*ret->value);
+                        out_ << ";\n";
+                        for (const auto& ens : current_function_->get_ensures_contracts()) {
+                            line("if (!(" + ens + ")) { __OXIDE_TRAP_MSG(\"AEROSPACE TRAP: #[ensures] postcondition violated in " + current_function_->name + "\"); }");
+                        }
+                        line("return result;");
+                    } else {
+                        for (const auto& ens : current_function_->get_ensures_contracts()) {
+                            line("if (!(" + ens + ")) { __OXIDE_TRAP_MSG(\"AEROSPACE TRAP: #[ensures] postcondition violated in " + current_function_->name + "\"); }");
+                        }
+                        line("return;");
+                    }
+                    return;
+                }
             }
             indent();
             emit_expression(*expr_stmt->expr);

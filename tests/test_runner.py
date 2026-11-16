@@ -75,6 +75,7 @@ def run():
         ("examples/57_milstd1553b_flight_bus.rs", 42, ["--profile=aerospace"]),
         ("examples/58_spacewire_packet_routing.rs", 42, ["--profile=aerospace"]),
         ("examples/59_secded_memory_scrubber.rs", 42, ["--profile=aerospace"]),
+        ("examples/60_design_by_contract_flight_guidance.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -262,6 +263,10 @@ def run():
         ("tests/ui/fail_scrubber_invalid_interval.rs", "MemoryScrubber::new scrub_interval_ms must be between 1 and 60000", []),
         ("tests/ui/fail_scrubber_interval_excess.rs", "MemoryScrubber::new scrub_interval_ms must be between 1 and 60000", []),
         ("tests/ui/fail_scrubber_immutable_scrub.rs", "cannot borrow immutable local variable 'scrubber' as mutable in method call", []),
+        ("tests/ui/fail_contract_static_violation.rs", "violates #[requires] precondition", ["--profile=aerospace"]),
+        ("tests/ui/fail_contract_unknown_param.rs", "contract references unknown identifier", ["--profile=aerospace"]),
+        ("tests/ui/fail_contract_ensures_unknown_var.rs", "contract references unknown identifier", ["--profile=aerospace"]),
+        ("tests/ui/fail_contract_non_bool.rs", "contract condition must evaluate to 'bool'", ["--profile=aerospace"]),
     ]
 
     for item in negative_tests:

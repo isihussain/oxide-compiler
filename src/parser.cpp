@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include "lexer.hpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -59,16 +60,39 @@ std::string Parser::parse_attribute() {
     std::string attr = consume(TokenType::Identifier, "Expected attribute name").text;
     if (match(TokenType::LParen)) {
         attr += "(";
-        while (!check(TokenType::RParen) && !is_at_end()) {
-            attr += advance().text;
+        int depth = 1;
+        bool is_contract = (attr == "requires(" || attr == "ensures(");
+        std::string inner_args;
+        while (depth > 0 && !is_at_end()) {
+            if (check(TokenType::LParen)) {
+                depth++;
+                if (is_contract && !inner_args.empty() && inner_args.back() != '(') inner_args += " ";
+                inner_args += advance().text;
+            } else if (check(TokenType::RParen)) {
+                depth--;
+                if (depth > 0) {
+                    inner_args += advance().text;
+                } else {
+                    advance();
+                }
+            } else {
+                if (is_contract && !inner_args.empty() && inner_args.back() != '(') inner_args += " ";
+                inner_args += advance().text;
+            }
         }
-        consume(TokenType::RParen, "Expected ')' after attribute arguments");
-        attr += ")";
+        attr += inner_args + ")";
     } else if (match(TokenType::Eq)) {
         attr += "=" + advance().text;
     }
     consume(TokenType::RBracket, "Expected ']' after attribute");
     return attr;
+}
+
+std::unique_ptr<Expression> Parser::parse_single_expression(const std::string& text) {
+    Lexer lexer(text, "<contract>");
+    auto tokens = lexer.tokenize();
+    Parser parser(std::move(tokens));
+    return parser.parse_expression();
 }
 
 std::unique_ptr<Program> Parser::parse_program() {

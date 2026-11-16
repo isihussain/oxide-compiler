@@ -249,8 +249,12 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_scrubber_invalid_interval.rs (correctly rejected)
 [PASS] fail_scrubber_interval_excess.rs (correctly rejected)
 [PASS] fail_scrubber_immutable_scrub.rs (correctly rejected)
+[PASS] fail_contract_static_violation.rs (correctly rejected)
+[PASS] fail_contract_unknown_param.rs (correctly rejected)
+[PASS] fail_contract_ensures_unknown_var.rs (correctly rejected)
+[PASS] fail_contract_non_bool.rs (correctly rejected)
 ==================================================
-Results: 220/220 tests passed.
+Results: 225/225 tests passed.
 ```
 
 ---
@@ -341,6 +345,10 @@ Results: 220/220 tests passed.
   - [x] MIL-STD-1553B dual-redundant flight bus framer and channel failover (`MilStd1553Bus`; [RT-Thread](https://github.com/RT-Thread/rt-thread) and [NASA cFS](https://github.com/nasa/cFS) inspired)
   - [x] SpaceWire (ECSS-E-ST-50-12C) packet router and autonomous link recovery (`SpaceWireRouter`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] SECDED radiation memory scrubber and bitflip repair (`MemoryScrubber`; [NASA cFS](https://github.com/nasa/cFS) and [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
+- [ ] **Milestone 15: Formal Verification & DO-178C Certification Reporting**
+  - [x] Design-by-Contract function preconditions and postconditions (`#[requires]`, `#[ensures]`; SPARK Ada and [NASA cFS](https://github.com/nasa/cFS) inspired)
+  - [ ] Static stack usage bound analyzer (`#[max_stack_bytes]`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
+  - [ ] Automated DO-178C DAL-A flight safety certification report (`--emit-safety-report`)
 
 ---
 

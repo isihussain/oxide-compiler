@@ -1,4 +1,5 @@
 #include "typeck.hpp"
+#include "parser.hpp"
 #include <optional>
 #include <queue>
 #include <set>
@@ -22,6 +23,127 @@ static bool extract_const_int(const Expression* expr, int64_t& out_val) {
         }
     }
     return false;
+}
+
+static std::optional<int64_t> eval_contract_expr(const Expression* expr, const std::map<std::string, int64_t>& env) {
+    if (!expr) return std::nullopt;
+    if (auto* lit = dynamic_cast<const IntegerLiteralExpr*>(expr)) {
+        return lit->value;
+    }
+    if (auto* blit = dynamic_cast<const BoolLiteralExpr*>(expr)) {
+        return blit->value ? 1 : 0;
+    }
+    if (auto* var = dynamic_cast<const VariableExpr*>(expr)) {
+        auto it = env.find(var->name);
+        if (it != env.end()) {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+    if (auto* un = dynamic_cast<const UnaryExpr*>(expr)) {
+        auto val = eval_contract_expr(un->operand.get(), env);
+        if (!val.has_value()) return std::nullopt;
+        if (un->op == UnaryOp::Negate) return -(*val);
+        if (un->op == UnaryOp::Not) return (*val != 0) ? 0 : 1;
+        return std::nullopt;
+    }
+    if (auto* bin = dynamic_cast<const BinaryExpr*>(expr)) {
+        auto left = eval_contract_expr(bin->left.get(), env);
+        auto right = eval_contract_expr(bin->right.get(), env);
+        if (!left.has_value() || !right.has_value()) return std::nullopt;
+        switch (bin->op) {
+            case BinaryOp::Add: return *left + *right;
+            case BinaryOp::Sub: return *left - *right;
+            case BinaryOp::Mul: return *left * *right;
+            case BinaryOp::Div: return (*right == 0) ? std::nullopt : std::optional<int64_t>(*left / *right);
+            case BinaryOp::Modulo: return (*right == 0) ? std::nullopt : std::optional<int64_t>(*left % *right);
+            case BinaryOp::Equal: return (*left == *right) ? 1 : 0;
+            case BinaryOp::NotEqual: return (*left != *right) ? 1 : 0;
+            case BinaryOp::Less: return (*left < *right) ? 1 : 0;
+            case BinaryOp::LessEqual: return (*left <= *right) ? 1 : 0;
+            case BinaryOp::Greater: return (*left > *right) ? 1 : 0;
+            case BinaryOp::GreaterEqual: return (*left >= *right) ? 1 : 0;
+            case BinaryOp::LogicalAnd: return ((*left != 0) && (*right != 0)) ? 1 : 0;
+            case BinaryOp::LogicalOr: return ((*left != 0) || (*right != 0)) ? 1 : 0;
+            default: return std::nullopt;
+        }
+    }
+    return std::nullopt;
+}
+
+static void collect_contract_variables(const Expression* expr, std::vector<std::string>& out_vars) {
+    if (!expr) return;
+    if (auto* var = dynamic_cast<const VariableExpr*>(expr)) {
+        out_vars.push_back(var->name);
+        return;
+    }
+    if (auto* un = dynamic_cast<const UnaryExpr*>(expr)) {
+        collect_contract_variables(un->operand.get(), out_vars);
+        return;
+    }
+    if (auto* bin = dynamic_cast<const BinaryExpr*>(expr)) {
+        collect_contract_variables(bin->left.get(), out_vars);
+        collect_contract_variables(bin->right.get(), out_vars);
+        return;
+    }
+}
+
+static std::optional<BaseTypeKind> deduce_contract_expr_type(
+    const Expression* expr,
+    const std::map<std::string, Type>& var_types) {
+    if (!expr) return std::nullopt;
+    if (dynamic_cast<const IntegerLiteralExpr*>(expr)) {
+        return BaseTypeKind::I32;
+    }
+    if (dynamic_cast<const BoolLiteralExpr*>(expr)) {
+        return BaseTypeKind::Bool;
+    }
+    if (dynamic_cast<const FloatLiteralExpr*>(expr)) {
+        return BaseTypeKind::F32;
+    }
+    if (auto* var = dynamic_cast<const VariableExpr*>(expr)) {
+        auto it = var_types.find(var->name);
+        if (it != var_types.end()) {
+            return it->second.kind;
+        }
+        return std::nullopt;
+    }
+    if (auto* un = dynamic_cast<const UnaryExpr*>(expr)) {
+        auto inner = deduce_contract_expr_type(un->operand.get(), var_types);
+        if (!inner) return std::nullopt;
+        if (un->op == UnaryOp::Not) return BaseTypeKind::Bool;
+        if (un->op == UnaryOp::Negate) return inner;
+        return std::nullopt;
+    }
+    if (auto* bin = dynamic_cast<const BinaryExpr*>(expr)) {
+        auto left = deduce_contract_expr_type(bin->left.get(), var_types);
+        auto right = deduce_contract_expr_type(bin->right.get(), var_types);
+        if (!left || !right) return std::nullopt;
+        switch (bin->op) {
+            case BinaryOp::LogicalAnd:
+            case BinaryOp::LogicalOr:
+                if (*left == BaseTypeKind::Bool && *right == BaseTypeKind::Bool) {
+                    return BaseTypeKind::Bool;
+                }
+                return std::nullopt;
+            case BinaryOp::Equal:
+            case BinaryOp::NotEqual:
+            case BinaryOp::Less:
+            case BinaryOp::LessEqual:
+            case BinaryOp::Greater:
+            case BinaryOp::GreaterEqual:
+                return BaseTypeKind::Bool;
+            case BinaryOp::Add:
+            case BinaryOp::Sub:
+            case BinaryOp::Mul:
+            case BinaryOp::Div:
+            case BinaryOp::Modulo:
+                return left;
+            default:
+                return std::nullopt;
+        }
+    }
+    return std::nullopt;
 }
 
 TypeChecker::TypeChecker(Program& program) : program_(program) {}
@@ -478,7 +600,7 @@ void TypeChecker::register_functions() {
             for (const auto& p : decl.parameters) {
                 params.push_back(p.type);
             }
-            function_table_[decl.name] = FunctionSignature{decl.name, {}, params, decl.return_type, decl.location};
+            function_table_[decl.name] = FunctionSignature{decl.name, {}, params, decl.return_type, decl.location, nullptr};
         }
     }
 
@@ -491,7 +613,7 @@ void TypeChecker::register_functions() {
         for (const auto& p : fn->parameters) {
             params.push_back(p.type);
         }
-        function_table_[fn->name] = FunctionSignature{fn->name, fn->type_params, params, fn->return_type, fn->location};
+        function_table_[fn->name] = FunctionSignature{fn->name, fn->type_params, params, fn->return_type, fn->location, fn.get()};
     }
 }
 
@@ -635,16 +757,16 @@ void TypeChecker::register_impl_blocks() {
                 emit_error(m->location, "duplicate method '" + m->method_name + "' for type '" + ib->target_type + "'");
             }
             method_table_[key] = MethodSignature{
-                ib->target_type, m->method_name, m->name, m->parameters, m->return_type, ib->trait_name, m->location
+                ib->target_type, m->method_name, m->name, m->parameters, m->return_type, ib->trait_name, m->location, m.get()
             };
 
             std::vector<Type> param_types;
             for (const auto& p : m->parameters) {
                 param_types.push_back(p.type);
             }
-            function_table_[m->name] = FunctionSignature{m->name, m->type_params, param_types, m->return_type, m->location};
+            function_table_[m->name] = FunctionSignature{m->name, m->type_params, param_types, m->return_type, m->location, m.get()};
             function_table_[ib->target_type + "::" + m->method_name] = FunctionSignature{
-                ib->target_type + "::" + m->method_name, m->type_params, param_types, m->return_type, m->location
+                ib->target_type + "::" + m->method_name, m->type_params, param_types, m->return_type, m->location, m.get()
             };
         }
     }
@@ -802,6 +924,76 @@ void TypeChecker::check_function(Function& func) {
     check_block(*func.body, func.return_type, true);
     exit_scope();
     current_function_return_type_ = prev_return;
+
+    std::map<std::string, Type> param_types;
+    for (const auto& p : func.parameters) {
+        param_types[p.name] = p.type;
+    }
+
+    // Validate #[requires] contracts
+    for (const auto& req_str : func.get_requires_contracts()) {
+        std::unique_ptr<Expression> parsed_expr;
+        try {
+            parsed_expr = Parser::parse_single_expression(req_str);
+        } catch (const std::exception& e) {
+            emit_error(func.location, "malformed #[requires] contract expression in function '" + func.name + "': " + e.what());
+            continue;
+        }
+        if (!parsed_expr) {
+            emit_error(func.location, "malformed #[requires] contract expression in function '" + func.name + "'");
+            continue;
+        }
+
+        std::vector<std::string> used_vars;
+        collect_contract_variables(parsed_expr.get(), used_vars);
+        bool has_unknown = false;
+        for (const auto& v : used_vars) {
+            if (param_types.find(v) == param_types.end()) {
+                emit_error(func.location, "contract references unknown identifier '" + v + "' in function '" + func.name + "'");
+                has_unknown = true;
+            }
+        }
+        if (has_unknown) continue;
+
+        auto t = deduce_contract_expr_type(parsed_expr.get(), param_types);
+        if (!t.has_value() || *t != BaseTypeKind::Bool) {
+            emit_error(func.location, "contract condition must evaluate to 'bool' in function '" + func.name + "'");
+        }
+    }
+
+    // Validate #[ensures] contracts
+    std::map<std::string, Type> ensures_types = param_types;
+    ensures_types["result"] = func.return_type;
+
+    for (const auto& ens_str : func.get_ensures_contracts()) {
+        std::unique_ptr<Expression> parsed_expr;
+        try {
+            parsed_expr = Parser::parse_single_expression(ens_str);
+        } catch (const std::exception& e) {
+            emit_error(func.location, "malformed #[ensures] contract expression in function '" + func.name + "': " + e.what());
+            continue;
+        }
+        if (!parsed_expr) {
+            emit_error(func.location, "malformed #[ensures] contract expression in function '" + func.name + "'");
+            continue;
+        }
+
+        std::vector<std::string> used_vars;
+        collect_contract_variables(parsed_expr.get(), used_vars);
+        bool has_unknown = false;
+        for (const auto& v : used_vars) {
+            if (ensures_types.find(v) == ensures_types.end()) {
+                emit_error(func.location, "contract references unknown identifier '" + v + "' in function '" + func.name + "'");
+                has_unknown = true;
+            }
+        }
+        if (has_unknown) continue;
+
+        auto t = deduce_contract_expr_type(parsed_expr.get(), ensures_types);
+        if (!t.has_value() || *t != BaseTypeKind::Bool) {
+            emit_error(func.location, "contract condition must evaluate to 'bool' in function '" + func.name + "'");
+        }
+    }
 
     if (func.has_attribute("tailrec")) {
         check_tailrec(func);
@@ -2296,6 +2488,27 @@ Type TypeChecker::check_expression(Expression& expr) {
                        std::to_string(call->arguments.size()) + " were supplied");
             call->evaluated_type = sig.return_type;
             return call->evaluated_type;
+        }
+
+        if (sig.ast_func) {
+            for (const auto& req_str : sig.ast_func->get_requires_contracts()) {
+                std::map<std::string, int64_t> const_env;
+                for (size_t i = 0; i < call->arguments.size() && i < sig.ast_func->parameters.size(); ++i) {
+                    int64_t cval = 0;
+                    if (extract_const_int(call->arguments[i].get(), cval)) {
+                        const_env[sig.ast_func->parameters[i].name] = cval;
+                    }
+                }
+                try {
+                    auto parsed_req = Parser::parse_single_expression(req_str);
+                    if (parsed_req) {
+                        auto eval_res = eval_contract_expr(parsed_req.get(), const_env);
+                        if (eval_res.has_value() && *eval_res == 0) {
+                            emit_error(call->location, "call to '" + call->callee + "' violates #[requires] precondition: '" + req_str + "'");
+                        }
+                    }
+                } catch (...) {}
+            }
         }
 
         std::map<std::string, Type> subst;
@@ -5128,6 +5341,27 @@ Type TypeChecker::check_expression(Expression& expr) {
                 emit_error(mc->arguments[i]->location, "mismatched type in argument " + std::to_string(i + 1) +
                            " to method '" + mc->method_name + "': expected '" + exp_t.to_string() +
                            "', found '" + arg_t.to_string() + "'");
+            }
+        }
+
+        if (method_sig.ast_func) {
+            for (const auto& req_str : method_sig.ast_func->get_requires_contracts()) {
+                std::map<std::string, int64_t> const_env;
+                for (size_t i = 0; i < mc->arguments.size() && (i + 1) < method_sig.ast_func->parameters.size(); ++i) {
+                    int64_t cval = 0;
+                    if (extract_const_int(mc->arguments[i].get(), cval)) {
+                        const_env[method_sig.ast_func->parameters[i + 1].name] = cval;
+                    }
+                }
+                try {
+                    auto parsed_req = Parser::parse_single_expression(req_str);
+                    if (parsed_req) {
+                        auto eval_res = eval_contract_expr(parsed_req.get(), const_env);
+                        if (eval_res.has_value() && *eval_res == 0) {
+                            emit_error(mc->location, "call to method '" + mc->method_name + "' violates #[requires] precondition: '" + req_str + "'");
+                        }
+                    }
+                } catch (...) {}
             }
         }
 

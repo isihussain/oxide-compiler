@@ -41,6 +41,7 @@ public:
      * @throws std::runtime_error on syntax errors with precise source coordinates.
      */
     std::unique_ptr<Program> parse_program();
+    static std::unique_ptr<Expression> parse_single_expression(const std::string& text);
 
 private:
     const Token& peek() const;

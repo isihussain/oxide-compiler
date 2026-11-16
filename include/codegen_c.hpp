@@ -48,6 +48,7 @@ private:
     std::stringstream out_;
     int indent_level_ = 0;
     int match_counter_ = 0;
+    const Function* current_function_ = nullptr;
 
     void indent();
     void line(const std::string& str = "");
