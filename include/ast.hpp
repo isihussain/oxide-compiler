@@ -463,6 +463,13 @@ struct LetStmt : public Statement {
         return ens;
     }
 
+    bool has_max_stack_bytes_attr() const {
+        for (const auto& a : attributes) {
+            if (a.rfind("max_stack_bytes", 0) == 0) return true;
+        }
+        return false;
+    }
+
     std::optional<int64_t> get_max_stack_bytes() const {
         for (const auto& a : attributes) {
             if (a.rfind("max_stack_bytes(", 0) == 0 && a.back() == ')') {
@@ -594,6 +601,13 @@ struct Function : public ASTNode {
             }
         }
         return ens;
+    }
+
+    bool has_max_stack_bytes_attr() const {
+        for (const auto& a : attributes) {
+            if (a.rfind("max_stack_bytes", 0) == 0) return true;
+        }
+        return false;
     }
 
     std::optional<int64_t> get_max_stack_bytes() const {

@@ -675,6 +675,139 @@ void AerospaceVerifier::check_cyclomatic_complexity() {
     }
 }
 
+static int64_t compute_type_stack_size(const Type& type, const Program& program) {
+    if (type.is_ref || type.is_mut_ref) {
+        return 8;
+    }
+    if (type.kind == BaseTypeKind::Array) {
+        int64_t elem_size = 4;
+        if (!type.type_args.empty()) {
+            elem_size = compute_type_stack_size(type.type_args[0], program);
+        }
+        return elem_size * std::max<int64_t>(1, type.array_size);
+    }
+    switch (type.kind) {
+        case BaseTypeKind::I32: return 4;
+        case BaseTypeKind::F32: return 4;
+        case BaseTypeKind::F64: return 8;
+        case BaseTypeKind::Bool: return 4;
+        case BaseTypeKind::PhysicalUnit: return 4;
+        case BaseTypeKind::Named: {
+            for (const auto& s : program.structs) {
+                if (s->name == type.name) {
+                    int64_t total = 0;
+                    for (const auto& f : s->fields) {
+                        total += compute_type_stack_size(f.type, program);
+                    }
+                    return std::max<int64_t>(4, total);
+                }
+            }
+            return 8;
+        }
+        default: return 4;
+    }
+}
+
+static int64_t compute_block_let_stack(const BlockExpr& block, const Program& program) {
+    int64_t total = 0;
+    for (const auto& stmt : block.statements) {
+        if (auto* let = dynamic_cast<const LetStmt*>(stmt.get())) {
+            total += compute_type_stack_size(let->declared_type, program);
+        } else if (auto* es = dynamic_cast<const ExprStmt*>(stmt.get())) {
+            if (auto* if_expr = dynamic_cast<const IfExpr*>(es->expr.get())) {
+                total += compute_block_let_stack(*if_expr->then_branch, program);
+                if (if_expr->else_branch) {
+                    total += compute_block_let_stack(*if_expr->else_branch, program);
+                }
+            } else if (auto* while_expr = dynamic_cast<const WhileExpr*>(es->expr.get())) {
+                total += compute_block_let_stack(*while_expr->body, program);
+            }
+        }
+    }
+    return total;
+}
+
+int64_t AerospaceVerifier::compute_fn_local_frame(const Function& fn) const {
+    int64_t frame = 16; // ABI overhead (return address, saved frame pointer)
+    for (const auto& p : fn.parameters) {
+        frame += compute_type_stack_size(p.type, program_);
+    }
+    if (fn.body) {
+        frame += compute_block_let_stack(*fn.body, program_);
+    }
+    return ((frame + 15) / 16) * 16;
+}
+
+int64_t AerospaceVerifier::compute_cumulative_stack(
+    const std::string& fn_name,
+    const std::map<std::string, int64_t>& local_frames,
+    std::map<std::string, int64_t>& memo,
+    std::set<std::string>& visiting) const {
+    if (memo.count(fn_name)) return memo.at(fn_name);
+    if (visiting.count(fn_name)) {
+        return local_frames.count(fn_name) ? local_frames.at(fn_name) : 16;
+    }
+
+    visiting.insert(fn_name);
+    int64_t my_frame = local_frames.count(fn_name) ? local_frames.at(fn_name) : 16;
+    int64_t max_callee_stack = 0;
+
+    auto it = call_graph_.find(fn_name);
+    if (it != call_graph_.end()) {
+        for (const auto& callee : it->second) {
+            int64_t c_stack = compute_cumulative_stack(callee, local_frames, memo, visiting);
+            if (c_stack > max_callee_stack) {
+                max_callee_stack = c_stack;
+            }
+        }
+    }
+
+    visiting.erase(fn_name);
+    int64_t total = my_frame + max_callee_stack;
+    memo[fn_name] = total;
+    return total;
+}
+
+// Static Stack Usage Bound Analyzer (NASA/JPL Flight Rules 1/2 & RT-Thread SRAM stack allocation):
+// Computes local variable frame consumption and traverses call tree depth to verify that
+// worst-case stack allocation does not exceed declared #[max_stack_bytes(N)] budgets.
+void AerospaceVerifier::check_stack_usage_bounds() {
+    std::map<std::string, int64_t> local_frames;
+    std::vector<const Function*> all_fns;
+
+    for (const auto& fn : program_.functions) {
+        local_frames[fn->name] = compute_fn_local_frame(*fn);
+        all_fns.push_back(fn.get());
+    }
+    for (const auto& ib : program_.impl_blocks) {
+        for (const auto& fn : ib->methods) {
+            local_frames[fn->name] = compute_fn_local_frame(*fn);
+            all_fns.push_back(fn.get());
+        }
+    }
+
+    std::map<std::string, int64_t> memo;
+    std::set<std::string> visiting;
+
+    for (const auto* fn : all_fns) {
+        if (!fn->has_max_stack_bytes_attr()) continue;
+
+        auto max_bytes_opt = fn->get_max_stack_bytes();
+        if (!max_bytes_opt.has_value() || *max_bytes_opt <= 0) {
+            emit_error(fn->location, "stack bound configuration error in function '" + fn->name + "': max_stack_bytes must be a positive integer");
+            continue;
+        }
+
+        int64_t limit = *max_bytes_opt;
+        int64_t worst_case = compute_cumulative_stack(fn->name, local_frames, memo, visiting);
+
+        if (worst_case > limit) {
+            emit_error(fn->location, "stack bound exceeded in function '" + fn->name + "': worst-case stack usage is " +
+                       std::to_string(worst_case) + " bytes (exceeds budget of " + std::to_string(limit) + " bytes)");
+        }
+    }
+}
+
 bool AerospaceVerifier::verify() {
     build_call_graph();
     check_recursion();
@@ -683,6 +816,7 @@ bool AerospaceVerifier::verify() {
     check_volatile_barriers();
     check_realtime_budgets();
     check_cyclomatic_complexity();
+    check_stack_usage_bounds();
     return errors_.empty();
 }
 

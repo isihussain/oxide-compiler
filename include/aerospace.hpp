@@ -44,6 +44,12 @@ private:
     void check_block_barriers(const BlockExpr& block, std::optional<SourceLocation>& last_write_loc);
     void check_realtime_budgets();
     void check_cyclomatic_complexity();
+    void check_stack_usage_bounds();
+    int64_t compute_fn_local_frame(const Function& fn) const;
+    int64_t compute_cumulative_stack(const std::string& fn_name,
+                                    const std::map<std::string, int64_t>& local_frames,
+                                    std::map<std::string, int64_t>& memo,
+                                    std::set<std::string>& visiting) const;
     int64_t compute_expr_cycles(const Expression& expr);
     int64_t compute_block_cycles(const BlockExpr& block);
 

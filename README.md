@@ -253,8 +253,11 @@ Running Oxide Conformance Test Suite...
 [PASS] fail_contract_unknown_param.rs (correctly rejected)
 [PASS] fail_contract_ensures_unknown_var.rs (correctly rejected)
 [PASS] fail_contract_non_bool.rs (correctly rejected)
+[PASS] fail_stack_bound_exceeded.rs (correctly rejected)
+[PASS] fail_stack_bound_call_tree_exceeded.rs (correctly rejected)
+[PASS] fail_stack_bound_invalid.rs (correctly rejected)
 ==================================================
-Results: 225/225 tests passed.
+Results: 229/229 tests passed.
 ```
 
 ---
@@ -347,7 +350,7 @@ Results: 225/225 tests passed.
   - [x] SECDED radiation memory scrubber and bitflip repair (`MemoryScrubber`; [NASA cFS](https://github.com/nasa/cFS) and [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
 - [ ] **Milestone 15: Formal Verification & DO-178C Certification Reporting**
   - [x] Design-by-Contract function preconditions and postconditions (`#[requires]`, `#[ensures]`; SPARK Ada and [NASA cFS](https://github.com/nasa/cFS) inspired)
-  - [ ] Static stack usage bound analyzer (`#[max_stack_bytes]`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
+  - [x] Static stack usage bound analyzer (`#[max_stack_bytes]`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [ ] Automated DO-178C DAL-A flight safety certification report (`--emit-safety-report`)
 
 ---

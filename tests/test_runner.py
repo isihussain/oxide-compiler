@@ -76,6 +76,7 @@ def run():
         ("examples/58_spacewire_packet_routing.rs", 42, ["--profile=aerospace"]),
         ("examples/59_secded_memory_scrubber.rs", 42, ["--profile=aerospace"]),
         ("examples/60_design_by_contract_flight_guidance.rs", 42, ["--profile=aerospace"]),
+        ("examples/61_static_stack_bound_analysis.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -267,6 +268,9 @@ def run():
         ("tests/ui/fail_contract_unknown_param.rs", "contract references unknown identifier", ["--profile=aerospace"]),
         ("tests/ui/fail_contract_ensures_unknown_var.rs", "contract references unknown identifier", ["--profile=aerospace"]),
         ("tests/ui/fail_contract_non_bool.rs", "contract condition must evaluate to 'bool'", ["--profile=aerospace"]),
+        ("tests/ui/fail_stack_bound_exceeded.rs", "stack bound exceeded in function 'large_frame_task'", ["--profile=aerospace"]),
+        ("tests/ui/fail_stack_bound_call_tree_exceeded.rs", "stack bound exceeded in function 'parent_task'", ["--profile=aerospace"]),
+        ("tests/ui/fail_stack_bound_invalid.rs", "stack bound configuration error in function 'invalid_stack_task': max_stack_bytes must be a positive integer", ["--profile=aerospace"]),
     ]
 
     for item in negative_tests:
