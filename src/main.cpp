@@ -40,6 +40,7 @@ void print_usage(const char* prog) {
               << "  --profile=aerospace           Enable safety-critical verification and checked arithmetic\n"
               << "  --target=<target>             Select target architecture (baremetal, hosted [default])\n"
               << "  --emit-linker-script[=<file>] Emit GNU LD bare-metal linker script (FLASH/SRAM layout)\n"
+              << "  --emit-safety-report[=<file>] Emit DO-178C DAL-A & NASA-STD-8739.8 certification report\n"
               << "  -v, --version                 Display compiler version\n"
               << "  -h, --help                    Display this help message\n";
 }
@@ -59,6 +60,8 @@ int main(int argc, char* argv[]) {
     bool target_baremetal = false;
     bool emit_linker_script = false;
     std::string emit_linker_script_path;
+    bool emit_safety_report = false;
+    std::string emit_safety_report_path;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -106,6 +109,14 @@ int main(int argc, char* argv[]) {
             emit_linker_script = true;
             if (i + 1 < argc && argv[i + 1][0] != '-' && std::string(argv[i + 1]).rfind(".ld") != std::string::npos) {
                 emit_linker_script_path = argv[++i];
+            }
+        } else if (arg.rfind("--emit-safety-report=", 0) == 0) {
+            emit_safety_report = true;
+            emit_safety_report_path = arg.substr(std::string("--emit-safety-report=").size());
+        } else if (arg == "--emit-safety-report") {
+            emit_safety_report = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-' && std::string(argv[i + 1]).rfind(".rs") == std::string::npos) {
+                emit_safety_report_path = argv[++i];
             }
         } else if (arg == "-o") {
             if (i + 1 < argc) {
@@ -208,13 +219,31 @@ int main(int argc, char* argv[]) {
     }
 
     // 6. Aerospace Safety-Critical Verification (NASA/JPL Rule 3: bounded recursion)
-    if (aerospace_profile) {
+    if (aerospace_profile || emit_safety_report) {
         oxide::AerospaceVerifier aero(*program);
         if (!aero.verify()) {
             for (const auto& err : aero.errors()) {
                 std::cerr << "oxide: " << err << "\n";
             }
             return 1;
+        }
+        if (emit_safety_report) {
+            std::string report = aero.generate_safety_report();
+            if (emit_safety_report_path.empty() || emit_safety_report_path == "-") {
+                std::cout << report;
+            } else {
+                std::ofstream rf(emit_safety_report_path);
+                if (!rf.is_open()) {
+                    std::cerr << "oxide: error: cannot write safety report to '" << emit_safety_report_path << "'\n";
+                    return 1;
+                }
+                rf << report;
+                rf.close();
+                std::cout << "oxide: DO-178C DAL-A flight safety certification report written to " << emit_safety_report_path << "\n";
+            }
+            if (check_only || output_bin.empty()) {
+                return 0;
+            }
         }
     }
 

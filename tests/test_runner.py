@@ -286,6 +286,24 @@ def run():
         else:
             print(f"[FAIL] {src.name}: expected error containing '{expected_err_sub}', output:\n{res.stderr}")
 
+    # Safety Certification Report Verification Tests
+    report_tests = [
+        ("examples/60_design_by_contract_flight_guidance.rs", "OXIDE DO-178C DAL-A & NASA-STD-8739.8 FLIGHT SAFETY CERTIFICATION REPORT"),
+        ("examples/61_static_stack_bound_analysis.rs", "STATIC STACK USAGE BOUND ANALYSIS"),
+    ]
+
+    for src_rel, expected_text in report_tests:
+        total += 1
+        src = root / src_rel
+        rpt_file = root / "build" / f"test_safety_report_{src.stem}.txt"
+        cmd = [str(compiler), f"--emit-safety-report={rpt_file}", str(src)]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode == 0 and rpt_file.exists() and expected_text in rpt_file.read_text():
+            print(f"[PASS] {src.name} safety report generated")
+            passed += 1
+        else:
+            print(f"[FAIL] {src.name} safety report generation failed:\n{res.stderr}\n{res.stdout}")
+
     print("=" * 50)
     print(f"Results: {passed}/{total} tests passed.")
     if passed != total:

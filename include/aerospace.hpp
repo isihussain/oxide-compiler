@@ -31,6 +31,12 @@ public:
      */
     bool verify();
 
+    /**
+     * @brief Generates an auditable DO-178C DAL-A & NASA-STD-8739.8 flight safety certification report.
+     * @return Formatted multi-section safety verification report.
+     */
+    std::string generate_safety_report() const;
+
     const std::vector<std::string>& errors() const { return errors_; }
 
 private:
@@ -50,8 +56,8 @@ private:
                                     const std::map<std::string, int64_t>& local_frames,
                                     std::map<std::string, int64_t>& memo,
                                     std::set<std::string>& visiting) const;
-    int64_t compute_expr_cycles(const Expression& expr);
-    int64_t compute_block_cycles(const BlockExpr& block);
+    int64_t compute_expr_cycles(const Expression& expr) const;
+    int64_t compute_block_cycles(const BlockExpr& block) const;
 
     void emit_error(SourceLocation loc, const std::string& message);
 
