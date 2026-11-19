@@ -255,6 +255,7 @@ def run():
         ("tests/ui/fail_milstd1553_rt_out_of_bounds.rs", "MilStd1553Bus::send_command rt_address must be between 0 and 31", []),
         ("tests/ui/fail_milstd1553_word_count_zero.rs", "MilStd1553Bus::send_command word_count must be between 1 and 32", []),
         ("tests/ui/fail_spacewire_invalid_address.rs", "SpaceWireRouter::new node_address must be a logical address between 32 and 254", []),
+        ("tests/ui/fail_spacewire_excess_address.rs", "SpaceWireRouter::new node_address must be a logical address between 32 and 254", []),
         ("tests/ui/fail_spacewire_invalid_speed.rs", "SpaceWireRouter::new link_speed_mbps must be between 2 and 200", []),
         ("tests/ui/fail_spacewire_immutable_route.rs", "cannot borrow immutable local variable 'router' as mutable in method call", []),
         ("tests/ui/fail_spacewire_dest_out_of_bounds.rs", "SpaceWireRouter::route_packet dest_addr must be between 32 and 254", []),
