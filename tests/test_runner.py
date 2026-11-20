@@ -77,6 +77,7 @@ def run():
         ("examples/59_secded_memory_scrubber.rs", 42, ["--profile=aerospace"]),
         ("examples/60_design_by_contract_flight_guidance.rs", 42, ["--profile=aerospace"]),
         ("examples/61_static_stack_bound_analysis.rs", 42, ["--profile=aerospace"]),
+        ("examples/62_arinc429_avionics_bus.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -272,6 +273,10 @@ def run():
         ("tests/ui/fail_stack_bound_exceeded.rs", "stack bound exceeded in function 'large_frame_task'", ["--profile=aerospace"]),
         ("tests/ui/fail_stack_bound_call_tree_exceeded.rs", "stack bound exceeded in function 'parent_task'", ["--profile=aerospace"]),
         ("tests/ui/fail_stack_bound_invalid.rs", "stack bound configuration error in function 'invalid_stack_task': max_stack_bytes must be a positive integer", ["--profile=aerospace"]),
+        ("tests/ui/fail_arinc429_invalid_speed.rs", "Arinc429Channel::new speed_kbps must be 12 (low-speed) or 100 (high-speed)", []),
+        ("tests/ui/fail_arinc429_invalid_channel.rs", "Arinc429Channel::new channel_id must be between 0 and 15", []),
+        ("tests/ui/fail_arinc429_label_out_of_bounds.rs", "Arinc429Channel::pack_word label must be between 0 and 255 (0o377)", []),
+        ("tests/ui/fail_arinc429_immutable_pack.rs", "cannot borrow immutable local variable 'channel' as mutable in method call", []),
     ]
 
     for item in negative_tests:
@@ -291,6 +296,7 @@ def run():
     report_tests = [
         ("examples/60_design_by_contract_flight_guidance.rs", "OXIDE DO-178C DAL-A & NASA-STD-8739.8 FLIGHT SAFETY CERTIFICATION REPORT"),
         ("examples/61_static_stack_bound_analysis.rs", "STATIC STACK USAGE BOUND ANALYSIS"),
+        ("examples/62_arinc429_avionics_bus.rs", "ARINC 429 Dual-Wire Avionics Bus"),
     ]
 
     for src_rel, expected_text in report_tests:

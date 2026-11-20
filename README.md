@@ -6,7 +6,7 @@ An independent, open-source compiler for the Rust programming language implement
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![Target](https://img.shields.io/badge/Target-Baremetal%20%7C%20Freestanding%20C99-brightgreen.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-231%2F231%20Passing-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-237%2F237%20Passing-success.svg)]()
 
 <p align="center">
   <img src="assets/demo.svg" alt="Oxide Aerospace Flight Software Verification" width="100%">
@@ -68,6 +68,7 @@ flowchart TD
 * **Design-by-Contract Verifier (`include/ast.hpp`, `src/typeck.cpp`, `src/codegen_c.cpp`)**: Evaluates function preconditions (`#[requires]`) and postconditions (`#[ensures]`). Checks constant function call arguments at compile time and emits runtime boundary assertion traps under `--profile=aerospace`.
 * **Static Stack Analyzer (`include/ast.hpp`, `include/aerospace.hpp`, `src/aerospace.cpp`)**: Computes worst-case call-tree stack consumption (`#[max_stack_bytes(N)]`). Rejects call paths that exceed target microcontroller SRAM frame limits.
 * **DO-178C Certification Report Generator (`src/aerospace.cpp`, `src/main.cpp`)**: Emits structured flight software compliance reports (`--emit-safety-report`) auditing NASA/JPL Rules 1-3, cyclomatic complexity, real-time deadlines, contract checks, and hardware bus safeguards.
+* **ARINC 429 Dual-Wire Avionics Bus Protocol (`src/typeck.cpp`, `src/codegen_c.cpp`)**: Implements point-to-point avionics communications over twisted shielded pairs (`Arinc429Channel`). Statically validates 32-bit word framing, octal labels (000-377), SDI routing, 19-bit data payloads, Sign/Status Matrix (SSM) assertions, and odd parity generation/validation under `--profile=aerospace`.
 * **Optimizer (`include/optimizer.hpp`, `src/optimizer.cpp`)**: AST optimization pass performing compile-time constant folding on arithmetic/boolean operations, algebraic identity simplifications ($x+0, x-0, x\times 1, x\times 0, x/1$), double negation elimination, dead code elimination following early returns, constant-bounded loop unrolling (trip count $\le 8$), dead loop pruning, and pure leaf function inline expansion.
 * **Code Generator (`include/codegen_c.hpp`, `src/codegen_c.cpp`)**: Maps verified AST nodes to standard ANSI C99, translating Rust primitives (`i32`, `bool`, references, arrays, slices, tagged union enums) into equivalent C constructs.
 
@@ -355,6 +356,10 @@ Results: 229/229 tests passed.
   - [x] Design-by-Contract function preconditions and postconditions (`#[requires]`, `#[ensures]`; SPARK Ada and [NASA cFS](https://github.com/nasa/cFS) inspired)
   - [x] Static stack usage bound analyzer (`#[max_stack_bytes]`; [RT-Thread](https://github.com/RT-Thread/rt-thread) inspired)
   - [x] Automated DO-178C DAL-A flight safety certification report (`--emit-safety-report`)
+- [ ] **Milestone 16: Aerospace Avionics Buses & Autonomous Power Subsystems**
+  - [x] ARINC 429 dual-wire avionics bus protocol (`Arinc429Channel`; [RT-Thread](https://github.com/RT-Thread/rt-thread) and [NASA cFS](https://github.com/nasa/cFS) inspired)
+  - [ ] ARINC 825 / CAN Aerospace flight bus framer & bandwidth schedulability (`CanAerospaceBus`; [RT-Thread](https://github.com/RT-Thread/rt-thread) and [NASA cFS](https://github.com/nasa/cFS) inspired)
+  - [ ] Power Distribution Unit (PDU) radiation latch-up & $I^2 t$ overcurrent trip controller (`PduCurrentLimiter`; [RT-Thread](https://github.com/RT-Thread/rt-thread) and [NASA cFS](https://github.com/nasa/cFS) inspired)
 
 ---
 

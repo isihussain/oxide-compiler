@@ -430,6 +430,12 @@ void TypeChecker::register_structs() {
         {"double_fault_count", Type{BaseTypeKind::I32, false, false}},
         {"scrubbed_count", Type{BaseTypeKind::I32, false, false}}
     }, {"block_words", "scrub_interval_ms", "corrected_count", "double_fault_count", "scrubbed_count"}, SourceLocation{0, 0}};
+    struct_table_["Arinc429Channel"] = StructSignature{"Arinc429Channel", {}, {
+        {"channel_id", Type{BaseTypeKind::I32, false, false}},
+        {"speed_kbps", Type{BaseTypeKind::I32, false, false}},
+        {"words_transmitted", Type{BaseTypeKind::I32, false, false}},
+        {"parity_errors", Type{BaseTypeKind::I32, false, false}}
+    }, {"channel_id", "speed_kbps", "words_transmitted", "parity_errors"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2471,6 +2477,29 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "MemoryScrubber", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "Arinc429Channel::new") {
+            if (call->arguments.size() != 2) {
+                emit_error(call->location, "Arinc429Channel::new takes exactly 2 arguments (channel_id, speed_kbps)");
+            } else {
+                Type t0 = check_expression(*call->arguments[0]);
+                Type t1 = check_expression(*call->arguments[1]);
+                if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32) {
+                    emit_error(call->location, "Arinc429Channel::new parameters must be 'i32'");
+                }
+                int64_t ch = 0, sp = 0;
+                bool b_ch = extract_const_int(call->arguments[0].get(), ch);
+                bool b_sp = extract_const_int(call->arguments[1].get(), sp);
+                if (b_ch && (ch < 0 || ch > 15)) {
+                    emit_error(call->arguments[0]->location, "Arinc429Channel::new channel_id must be between 0 and 15");
+                }
+                if (b_sp && (sp != 12 && sp != 100)) {
+                    emit_error(call->arguments[1]->location, "Arinc429Channel::new speed_kbps must be 12 (low-speed) or 100 (high-speed)");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "Arinc429Channel", false, false};
             return call->evaluated_type;
         }
 
@@ -5280,6 +5309,128 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "MemoryScrubber__reset_metrics";
                 mc->resolved_self_kind = SelfKind::RefMut;
                 mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "Arinc429Channel") {
+            if (mc->method_name == "pack_word") {
+                if (mc->arguments.size() != 4) {
+                    emit_error(mc->location, "Arinc429Channel::pack_word takes exactly 4 arguments (label_octal, sdi, data, ssm)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    Type t3 = check_expression(*mc->arguments[3]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32 ||
+                        t2.kind != BaseTypeKind::I32 || t3.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "Arinc429Channel::pack_word arguments must be 'i32'");
+                    }
+                    int64_t lbl = 0, sdi = 0, data = 0, ssm = 0;
+                    if (extract_const_int(mc->arguments[0].get(), lbl) && (lbl < 0 || lbl > 255)) {
+                        emit_error(mc->arguments[0]->location, "Arinc429Channel::pack_word label must be between 0 and 255 (0o377)");
+                    }
+                    if (extract_const_int(mc->arguments[1].get(), sdi) && (sdi < 0 || sdi > 3)) {
+                        emit_error(mc->arguments[1]->location, "Arinc429Channel::pack_word sdi must be between 0 and 3");
+                    }
+                    if (extract_const_int(mc->arguments[2].get(), data) && (data < 0 || data > 524287)) {
+                        emit_error(mc->arguments[2]->location, "Arinc429Channel::pack_word data must fit in 19 bits (0 to 524287)");
+                    }
+                    if (extract_const_int(mc->arguments[3].get(), ssm) && (ssm < 0 || ssm > 3)) {
+                        emit_error(mc->arguments[3]->location, "Arinc429Channel::pack_word ssm must be between 0 and 3");
+                    }
+                }
+                mc->resolved_callee = "Arinc429Channel__pack_word";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "unpack_word") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Arinc429Channel::unpack_word takes exactly 1 argument (word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "Arinc429Channel::unpack_word parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "Arinc429Channel__unpack_word";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "get_label") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Arinc429Channel::get_label takes exactly 1 argument (word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "Arinc429Channel::get_label parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "Arinc429Channel__get_label";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "get_sdi") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Arinc429Channel::get_sdi takes exactly 1 argument (word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "Arinc429Channel::get_sdi parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "Arinc429Channel__get_sdi";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "get_ssm") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Arinc429Channel::get_ssm takes exactly 1 argument (word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "Arinc429Channel::get_ssm parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "Arinc429Channel__get_ssm";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_valid") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "Arinc429Channel::is_valid takes exactly 1 argument (word)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "Arinc429Channel::is_valid parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "Arinc429Channel__is_valid";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "words_transmitted") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Arinc429Channel::words_transmitted takes 0 arguments");
+                }
+                mc->resolved_callee = "Arinc429Channel__words_transmitted";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "parity_errors") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "Arinc429Channel::parity_errors takes 0 arguments");
+                }
+                mc->resolved_callee = "Arinc429Channel__parity_errors";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
                 return mc->evaluated_type;
             }
         }

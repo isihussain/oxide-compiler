@@ -963,7 +963,8 @@ std::string AerospaceVerifier::generate_safety_report() const {
     ss << "[7] BARE-METAL AVIONICS & FLIGHT BUS INTEGRITY\n";
     ss << "  - MIL-STD-1553B Dual-Redundant Flight Bus: RT 0-31, 1-32 Words, Auto Failover ACTIVE\n";
     ss << "  - SpaceWire (ECSS-E-ST-50-12C) Router: Logical Addr 32-254, 2-200 Mbps ACTIVE\n";
-    ss << "  - SECDED Radiation Memory Scrubber: Hamming(22, 16) Single Error Correction ACTIVE\n\n";
+    ss << "  - SECDED Radiation Memory Scrubber: Hamming(22, 16) Single Error Correction ACTIVE\n";
+    ss << "  - ARINC 429 Dual-Wire Avionics Bus: 32-bit Words, Odd Parity, SSM Integrity ACTIVE\n\n";
 
     ss << "================================================================================\n";
     ss << "CERTIFICATION CONCLUSION: CONFORMS TO DO-178C DAL-A & NASA-STD-8739.8\n";
