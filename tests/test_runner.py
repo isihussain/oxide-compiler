@@ -78,6 +78,7 @@ def run():
         ("examples/60_design_by_contract_flight_guidance.rs", 42, ["--profile=aerospace"]),
         ("examples/61_static_stack_bound_analysis.rs", 42, ["--profile=aerospace"]),
         ("examples/62_arinc429_avionics_bus.rs", 42, ["--profile=aerospace"]),
+        ("examples/63_can_aerospace_bus.rs", 42, ["--profile=aerospace"]),
     ]
 
     passed = 0
@@ -277,6 +278,10 @@ def run():
         ("tests/ui/fail_arinc429_invalid_channel.rs", "Arinc429Channel::new channel_id must be between 0 and 15", []),
         ("tests/ui/fail_arinc429_label_out_of_bounds.rs", "Arinc429Channel::pack_word label must be between 0 and 255 (0o377)", []),
         ("tests/ui/fail_arinc429_immutable_pack.rs", "cannot borrow immutable local variable 'channel' as mutable in method call", []),
+        ("tests/ui/fail_can_invalid_baud.rs", "CanAerospaceBus::new baud_rate_kbps must be 125, 250, 500, or 1000", []),
+        ("tests/ui/fail_can_load_excess.rs", "CanAerospaceBus::new max_bus_load_pct must be between 1 and 70", []),
+        ("tests/ui/fail_can_emergency_priority_inverted.rs", "CanAerospaceBus::transmit_frame emergency channel 0 requires msg_id < 256", []),
+        ("tests/ui/fail_can_immutable_transmit.rs", "cannot borrow immutable local variable 'bus' as mutable in method call", []),
     ]
 
     for item in negative_tests:
@@ -297,6 +302,7 @@ def run():
         ("examples/60_design_by_contract_flight_guidance.rs", "OXIDE DO-178C DAL-A & NASA-STD-8739.8 FLIGHT SAFETY CERTIFICATION REPORT"),
         ("examples/61_static_stack_bound_analysis.rs", "STATIC STACK USAGE BOUND ANALYSIS"),
         ("examples/62_arinc429_avionics_bus.rs", "ARINC 429 Dual-Wire Avionics Bus"),
+        ("examples/63_can_aerospace_bus.rs", "ARINC 825 / CAN Aerospace Bus"),
     ]
 
     for src_rel, expected_text in report_tests:

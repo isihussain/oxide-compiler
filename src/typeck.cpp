@@ -436,6 +436,13 @@ void TypeChecker::register_structs() {
         {"words_transmitted", Type{BaseTypeKind::I32, false, false}},
         {"parity_errors", Type{BaseTypeKind::I32, false, false}}
     }, {"channel_id", "speed_kbps", "words_transmitted", "parity_errors"}, SourceLocation{0, 0}};
+    struct_table_["CanAerospaceBus"] = StructSignature{"CanAerospaceBus", {}, {
+        {"node_id", Type{BaseTypeKind::I32, false, false}},
+        {"baud_rate_kbps", Type{BaseTypeKind::I32, false, false}},
+        {"max_bus_load_pct", Type{BaseTypeKind::I32, false, false}},
+        {"frames_sent", Type{BaseTypeKind::I32, false, false}},
+        {"bus_errors", Type{BaseTypeKind::I32, false, false}}
+    }, {"node_id", "baud_rate_kbps", "max_bus_load_pct", "frames_sent", "bus_errors"}, SourceLocation{0, 0}};
 }
 
 void TypeChecker::register_enums() {
@@ -2500,6 +2507,34 @@ Type TypeChecker::check_expression(Expression& expr) {
                 }
             }
             call->evaluated_type = Type{BaseTypeKind::Named, "Arinc429Channel", false, false};
+            return call->evaluated_type;
+        }
+
+        if (call->callee == "CanAerospaceBus::new") {
+            if (call->arguments.size() != 3) {
+                emit_error(call->location, "CanAerospaceBus::new takes exactly 3 arguments (node_id, baud_rate_kbps, max_bus_load_pct)");
+            } else {
+                Type t0 = check_expression(*call->arguments[0]);
+                Type t1 = check_expression(*call->arguments[1]);
+                Type t2 = check_expression(*call->arguments[2]);
+                if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32 || t2.kind != BaseTypeKind::I32) {
+                    emit_error(call->location, "CanAerospaceBus::new parameters must be 'i32'");
+                }
+                int64_t node = 0, baud = 0, load = 0;
+                bool b_node = extract_const_int(call->arguments[0].get(), node);
+                bool b_baud = extract_const_int(call->arguments[1].get(), baud);
+                bool b_load = extract_const_int(call->arguments[2].get(), load);
+                if (b_node && (node < 1 || node > 127)) {
+                    emit_error(call->arguments[0]->location, "CanAerospaceBus::new node_id must be between 1 and 127");
+                }
+                if (b_baud && (baud != 125 && baud != 250 && baud != 500 && baud != 1000)) {
+                    emit_error(call->arguments[1]->location, "CanAerospaceBus::new baud_rate_kbps must be 125, 250, 500, or 1000");
+                }
+                if (b_load && (load < 1 || load > 70)) {
+                    emit_error(call->arguments[2]->location, "CanAerospaceBus::new max_bus_load_pct must be between 1 and 70");
+                }
+            }
+            call->evaluated_type = Type{BaseTypeKind::Named, "CanAerospaceBus", false, false};
             return call->evaluated_type;
         }
 
@@ -5431,6 +5466,99 @@ Type TypeChecker::check_expression(Expression& expr) {
                 mc->resolved_callee = "Arinc429Channel__parity_errors";
                 mc->resolved_self_kind = SelfKind::Ref;
                 mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+        }
+
+        if (base_struct == "CanAerospaceBus") {
+            if (mc->method_name == "transmit_frame") {
+                if (mc->arguments.size() != 4) {
+                    emit_error(mc->location, "CanAerospaceBus::transmit_frame takes exactly 4 arguments (msg_id, service_channel, dlc, payload_word)");
+                } else {
+                    Type t0 = check_expression(*mc->arguments[0]);
+                    Type t1 = check_expression(*mc->arguments[1]);
+                    Type t2 = check_expression(*mc->arguments[2]);
+                    Type t3 = check_expression(*mc->arguments[3]);
+                    if (t0.kind != BaseTypeKind::I32 || t1.kind != BaseTypeKind::I32 ||
+                        t2.kind != BaseTypeKind::I32 || t3.kind != BaseTypeKind::I32) {
+                        emit_error(mc->location, "CanAerospaceBus::transmit_frame arguments must be 'i32'");
+                    }
+                    int64_t msg = 0, sc = 0, dlc = 0;
+                    if (extract_const_int(mc->arguments[0].get(), msg) && (msg < 0 || msg > 536870911)) {
+                        emit_error(mc->arguments[0]->location, "CanAerospaceBus::transmit_frame msg_id out of range (0 to 536870911)");
+                    }
+                    if (extract_const_int(mc->arguments[1].get(), sc) && (sc < 0 || sc > 3)) {
+                        emit_error(mc->arguments[1]->location, "CanAerospaceBus::transmit_frame service_channel must be between 0 and 3");
+                    }
+                    if (extract_const_int(mc->arguments[0].get(), msg) && extract_const_int(mc->arguments[1].get(), sc) && sc == 0 && msg >= 256) {
+                        emit_error(mc->arguments[0]->location, "CanAerospaceBus::transmit_frame emergency channel 0 requires msg_id < 256");
+                    }
+                    if (extract_const_int(mc->arguments[2].get(), dlc) && (dlc < 0 || dlc > 8)) {
+                        emit_error(mc->arguments[2]->location, "CanAerospaceBus::transmit_frame dlc must be between 0 and 8");
+                    }
+                }
+                mc->resolved_callee = "CanAerospaceBus__transmit_frame";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "frames_sent") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "CanAerospaceBus::frames_sent takes 0 arguments");
+                }
+                mc->resolved_callee = "CanAerospaceBus__frames_sent";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "node_id") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "CanAerospaceBus::node_id takes 0 arguments");
+                }
+                mc->resolved_callee = "CanAerospaceBus__node_id";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "baud_rate_kbps") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "CanAerospaceBus::baud_rate_kbps takes 0 arguments");
+                }
+                mc->resolved_callee = "CanAerospaceBus__baud_rate_kbps";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "max_bus_load_pct") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "CanAerospaceBus::max_bus_load_pct takes 0 arguments");
+                }
+                mc->resolved_callee = "CanAerospaceBus__max_bus_load_pct";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::I32, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "is_bus_saturated") {
+                if (mc->arguments.size() != 1) {
+                    emit_error(mc->location, "CanAerospaceBus::is_bus_saturated takes exactly 1 argument (active_load_pct)");
+                } else {
+                    Type t = check_expression(*mc->arguments[0]);
+                    if (t.kind != BaseTypeKind::I32) {
+                        emit_error(mc->arguments[0]->location, "CanAerospaceBus::is_bus_saturated parameter must be 'i32'");
+                    }
+                }
+                mc->resolved_callee = "CanAerospaceBus__is_bus_saturated";
+                mc->resolved_self_kind = SelfKind::Ref;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
+                return mc->evaluated_type;
+            }
+            if (mc->method_name == "reset") {
+                if (!mc->arguments.empty()) {
+                    emit_error(mc->location, "CanAerospaceBus::reset takes 0 arguments");
+                }
+                mc->resolved_callee = "CanAerospaceBus__reset";
+                mc->resolved_self_kind = SelfKind::RefMut;
+                mc->evaluated_type = Type{BaseTypeKind::Bool, false, false};
                 return mc->evaluated_type;
             }
         }
